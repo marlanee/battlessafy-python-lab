@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f5ef">
+  <meta name="description" content="배틀싸피를 준비하는 파이썬 학습실. Stage 1~6 실습과 추가 학습 A~Z를 브라우저에서 풀고, 실행하고, 진도를 이어가세요.">
+  <title>배틀싸피 파이썬 랩 — Stage 1~6 · 추가 학습 A~Z</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css?v=3">
+  <script type="module" src="./app.js?v=3"></script>
+</head>
+<body>
+  <a class="skip-link" href="#workspace">본문으로 건너뛰기</a>
+  <header class="topbar">
+    <a class="brand" href="#stage1" aria-label="배틀싸피 파이썬 랩 처음으로">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M8 17h16v8H8zM12 10h9v7h-9zM16 6v5M21 13h7M5 20v5m22-5v5"/></svg></span>
+      <span>배틀싸피 <strong>파이썬 랩</strong><small>BUILD YOUR OWN TANK BOT</small></span>
+    </a>
+    <nav class="header-actions" aria-label="학습 도구">
+      <span class="local-label"><i></i> 내 브라우저에 저장</span>
+      <button class="text-button" id="backup" title="코드와 진도를 JSON 파일로 저장">진도 백업 <span aria-hidden="true">↗</span></button>
+      <button class="text-button" id="restore">백업 불러오기</button>
+      <input id="backup-file" type="file" accept=".json,application/json" hidden>
+      <button class="icon-button mobile-menu" id="menu" aria-label="과제 목록 열기" aria-expanded="false">☰</button>
+    </nav>
+  </header>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar" aria-label="A부터 Z까지 과제 목록">
+      <div class="track-switch" aria-label="학습 영역"><button id="stage-track" class="track-button active" aria-pressed="true">실습 문제 <small>Stage 1—6</small></button><button id="extra-track" class="track-button" aria-pressed="false">추가 학습 <small>A—Z</small></button></div>
+      <div class="course-heading"><span class="eyebrow" id="track-eyebrow">STAGE PRACTICE</span><h2 id="track-title">여섯 단계, 하나의 전략.</h2><p id="track-description">OT의 단계별 목표를 웹에서 연습해요</p></div>
+      <div class="course-progress"><div><span>나의 진도</span><strong id="progress-text">0 / 26</strong></div><progress id="progress" max="26" value="0" aria-label="완료한 과제 수"></progress><small id="progress-caption">첫 번째 미션을 시작해 보세요.</small></div>
+      <nav id="lesson-list" aria-label="학습 단계"></nav>
+      <div class="sidebar-footer"><span class="tiny-tank" aria-hidden="true">⌁</span><p>잘 돌아가는 한 줄이<br>좋은 전략의 시작입니다.</p><button class="text-button" id="guide">OT 기반 준비 가이드 ↗</button><br><button class="text-button" id="about">이 학습실에 대해 ↗</button></div>
+    </aside>
+    <main id="workspace" tabindex="-1">
+      <div class="breadcrumb"><span>파이썬 학습 코스</span><span>/</span><span id="breadcrumb-group">기초</span><span>/</span><strong id="breadcrumb-lesson">MISSION A</strong></div>
+      <section class="mission-heading" aria-labelledby="mission-title">
+        <div><div class="mission-meta"><span class="pill" id="group-label">01 · 기초</span><span id="duration">약 15분</span><span id="mission-state">도전 전</span></div><h1 id="mission-title">내 탱크와 적 포탑 찾기</h1><p id="mission-story"></p></div>
+        <div class="mission-letter" id="mission-letter" aria-hidden="true">A<span>MISSION</span></div>
+      </section>
+      <div class="workspace-grid">
+        <section class="lesson-card panel" aria-label="문제와 학습 내용">
+          <div class="tabs" role="tablist" aria-label="문제 패널"><button id="problem-tab" class="tab active" role="tab" aria-selected="true" aria-controls="problem-panel">미션 안내</button><button id="notes-tab" class="tab" role="tab" aria-selected="false" aria-controls="notes-panel">나의 복습 노트</button></div>
+          <div id="problem-panel" role="tabpanel" aria-labelledby="problem-tab">
+            <div class="lesson-content">
+              <div class="concept-box"><span class="eyebrow">TODAY’S TOOLKIT</span><p id="concept"></p></div>
+              <h2><span class="section-number">01</span>이번에 만들 것</h2><code class="signature" id="signature"></code>
+              <ul id="requirements" class="requirements"></ul>
+              <div id="stage-guide" hidden></div>
+              <div class="map-head"><h2><span class="section-number">02</span>맵으로 살펴보기</h2><span>좌표는 (행, 열)</span></div>
+              <div id="map" class="map" role="img" aria-label="학습용 예제 맵"></div>
+              <div class="map-legend"><span><i class="legend-me"></i>M 내 탱크</span><span><i class="legend-target"></i>X 적 포탑</span><span><i class="legend-rock"></i>R 바위</span><span><i class="legend-ground"></i>G 일반 지형</span></div>
+              <p class="map-note">그림은 참고용 학습 맵입니다. 실제 채점 입력은 아래 예제를 확인하세요.</p>
+              <h2><span class="section-number">03</span>입력과 기대 결과</h2><div id="examples"></div>
+              <div class="hint-area"><div><h2>막혔다면, 한 단계씩</h2><p>정답 대신 다음 생각의 실마리를 확인하세요.</p></div><button id="hint" class="outline-button">힌트 보기 <span id="hint-count">0 / 3</span></button><ol id="hints"></ol></div>
+            </div>
+          </div>
+          <div id="notes-panel" role="tabpanel" aria-labelledby="notes-tab" hidden><div class="lesson-content"><span class="eyebrow">EXPLAIN IT IN YOUR WORDS</span><h2>설명할 수 있으면, 내 것이 됩니다.</h2><ol id="questions"></ol><label for="notes">풀이와 배운 점</label><textarea id="notes" placeholder="어떻게 풀었는지, 어디에서 막혔는지 적어보세요."></textarea><p class="map-note">노트도 자동 저장됩니다. 아래 ‘검토 요청 복사’로 코드와 함께 채팅에 가져올 수 있어요.</p></div></div>
+        </section>
+        <div class="practice-column">
+          <section class="editor-card" aria-label="파이썬 코드 작성">
+            <div class="editor-top"><span><i class="python-dot"></i><strong id="filename">mission_a.py</strong></span><span id="save-state" role="status">자동 저장 준비</span></div>
+            <div class="editor-toolbar"><span>Python <span class="muted">/ 브라우저 실행</span></span><div><button id="reset" class="editor-tool" title="현재 과제의 시작 코드로 되돌리기">시작 코드</button><button id="download" class="editor-tool" title="현재 코드를 파이썬 파일로 저장">.py 저장 ↓</button></div></div>
+            <div class="editor-body"><div class="line-numbers" id="line-numbers" aria-hidden="true">1</div><label class="sr-only" for="code">파이썬 풀이 코드</label><textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-describedby="editor-help"></textarea></div>
+            <div class="editor-bottom"><span id="editor-help">Tab 들여쓰기 · Ctrl/⌘ + Enter 채점</span><span>UTF-8</span></div>
+            <div class="run-actions"><button id="run" class="run-button"><span aria-hidden="true">▷</span> 예제 실행</button><button id="grade" class="grade-button"><span aria-hidden="true">▶</span> 전체 채점하기</button><button id="stop" class="stop-button" hidden>실행 중지</button></div>
+          </section>
+          <section class="results-card panel" aria-labelledby="results-title"><div class="results-head"><h2 id="results-title">실행 결과</h2><span id="runtime-status"><i></i> 실행 시 Python 준비</span></div><div id="results" aria-live="polite"><div class="empty-result"><span class="terminal-icon" aria-hidden="true">›_</span><h3>첫 번째 코드를 기다리는 중</h3><p>함수를 작성하고 예제를 실행해 보세요.<br>입력, 기대값, 반환값을 함께 확인할 수 있어요.</p></div></div></section>
+          <div class="review-card"><div><strong>혼자 막혀 있지 않아도 괜찮아요.</strong><p>코드와 질문을 복사해 이 채팅에 제출하세요.</p></div><button id="review" class="outline-button">검토 요청 복사 ↗</button></div>
+          <div class="lesson-navigation"><button id="previous" class="text-button">← 이전 과제</button><button id="next" class="text-button">다음 과제 →</button></div>
+          <p class="learning-note">웹 채점은 학습용 예제 검사입니다. 실제 게임 연결과 승패 검증은 Z 과제의 안내를 따라 별도로 진행합니다.</p>
+        </div>
+      </div>
+      <footer class="main-footer"><span>작은 함수부터, 나만의 전략까지.</span><span>A—Z PYTHON LAB · 비공식 개인 학습 프로젝트</span></footer>
+    </main>
+  </div>
+  <div id="toast" role="status" class="toast" hidden></div>
+  <dialog id="about-dialog"><div class="dialog-body"><span class="eyebrow">ABOUT THIS LAB</span><h2>배틀싸피 파이썬 랩</h2><p>실습 문제에는 OT Stage 1~6의 목표에 맞춘 독립 연습 맵 12개가 있습니다. 추가 학습에는 A~Z 26개 과제와 104개 함수 예제가 있습니다. 문제·힌트·채점은 미리 구성된 학습 콘텐츠이며 실시간 AI 대화 기능은 아닙니다.</p><p>코드, 노트, 진도는 이 브라우저의 저장소에 보관됩니다. 다른 기기로 옮기거나 브라우저 데이터를 지우기 전에는 ‘진도 백업’을 사용하세요.</p><p>Python은 Pyodide를 통해 브라우저에서 실행됩니다. 최초 실행에는 인터넷 연결과 실행 환경 다운로드가 필요합니다. 무한 반복은 중지 버튼이나 실행 시간 제한으로 종료할 수 있습니다.</p><p>학습 맵과 별점은 웹 연습용입니다. 공식 게임·매뉴얼·인증정보는 포함하지 않으며 공식 평가 결과로 전송되지 않습니다. 실제 게임의 로컬 TCP 소켓에 직접 연결되지는 않습니다.</p><a href="https://pyodide.org/en/stable/usage/webworker.html" target="_blank" rel="noreferrer">Python 실행 방식 알아보기 ↗</a><form method="dialog"><button class="grade-button">학습실로 돌아가기</button></form></div></dialog>
+  <dialog id="guide-dialog"><div class="dialog-body"><span class="eyebrow">OT · 16TH COHORT</span><h2>어디에 집중해서 연습할까요?</h2><p>2026년 10월 21일 확인한 OT 1부 수정본을 바탕으로 구성했습니다. Stage 1~4는 이동·경로 탐색·사거리, Stage 5는 나무 제거, Stage 6는 암호 보급과 변화 대응이 핵심입니다. OT는 Stage 4를 Pass 핵심 단계로 표시합니다.</p><p>우선 실습 Stage 1~4를 진행하고, 막히는 기능은 연결된 추가 학습 A~N에서 연습하세요. 이후 나무·탄약·암호 과제를 보완하고 Stage 5~6으로 이어가세요. 모래와 체력 경로는 팀 대결 준비용 추가 학습입니다.</p><p><strong>운영 안내:</strong> OT에는 10월 26일 09:30~12:30 과목평가와 12:30까지 코드 토론·공유·AI 활용 제한이 안내되어 있습니다. 오후 팀 대항전 준비는 AI 활용 가능으로 표시되어 있습니다. 실제 이용과 제출은 최신 운영 안내를 확인하세요.</p><p>일반탄은 스테이지 시작 시 1개, 팀 배틀은 무제한으로 안내됩니다. 메가탄 보유 상한은 10개이며 나무는 일반·메가 포탄 한 발로 제거됩니다. 최종 제출은 게임 결과 확인 외에 별도 소스 코드 제출 절차도 있습니다.</p><a href="https://edu.ssafy.com/edu/lectureroom/openlearning/openLearningView.do#none;" target="_blank" rel="noreferrer">eduSSAFY에서 공식 학습자료 확인 ↗</a><form method="dialog"><button class="grade-button">확인했어요</button></form></div></dialog>
+  <dialog id="reset-dialog"><div class="dialog-body"><h2>시작 코드로 되돌릴까요?</h2><p>현재 과제의 코드가 시작 코드로 바뀌고 이 과제의 통과 상태가 해제됩니다. 복습 노트는 유지됩니다. 필요하면 먼저 .py로 저장하세요.</p><form method="dialog" class="dialog-actions"><button class="outline-button" value="cancel">취소</button><button class="grade-button" value="reset">되돌리기</button></form></div></dialog>
+  <dialog id="restore-dialog"><div class="dialog-body"><h2>백업으로 진도를 복원할까요?</h2><p>현재 브라우저의 코드·노트·진도가 선택한 백업으로 교체됩니다. 현재 내용을 유지하려면 취소하고 먼저 ‘진도 백업’을 실행하세요.</p><form method="dialog" class="dialog-actions"><button class="outline-button" value="cancel">취소</button><button class="grade-button" value="restore">복원하기</button></form></div></dialog>
+  <noscript>이 학습실은 JavaScript가 필요합니다. 브라우저 설정에서 JavaScript를 허용한 뒤 다시 열어주세요.</noscript>
+</body>
+</html>
