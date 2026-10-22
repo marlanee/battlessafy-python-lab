@@ -31,7 +31,14 @@ function toast(message) {
 }
 
 function record(id = current.id) {
-  if (!data.lessons[id]) data.lessons[id] = { code: lessons.find((l) => l.id === id).starter, notes: '', hints: 0 };
+  const lesson = lessons.find((l) => l.id === id);
+  if (!data.lessons[id]) data.lessons[id] = { code: lesson.starter, notes: '', hints: 0 };
+  // Upgrade only an untouched old starter. Preserve every edited learner draft.
+  if (lesson.scaffold && data.lessons[id].code === lesson.legacyStarter) {
+    data.lessons[id].code = lesson.starter;
+    data.lessons[id].passed = false;
+    data.lessons[id].passedCode = '';
+  }
   return data.lessons[id];
 }
 
