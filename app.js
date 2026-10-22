@@ -585,7 +585,7 @@ function bindEvents() {
 
 async function main() {
   try {
-    const responses = await Promise.all(['stages.json', 'lessons.json'].map((file) => fetch(new URL(`./${file}?v=4`, import.meta.url))));
+    const responses = await Promise.all(['stages.json', 'lessons.json'].map((file) => fetch(new URL(`./${file}?v=5`, import.meta.url))));
     if (responses.some((r) => !r.ok)) throw new Error('과제 파일을 읽지 못했습니다.');
     const [stages, extra] = await Promise.all(responses.map((r) => r.json()));
     lessons = [...stages, ...extra];
