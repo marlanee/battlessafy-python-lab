@@ -7,9 +7,10 @@
     "group": "실습 문제",
     "minutes": 25,
     "concept": "좌표 · 이동 명령 · 목표 탐색",
-    "story": "OT의 단계별 요구사항을 직접 만든 연습 맵에서 구현하고, 턴별 리플레이로 확인하세요.",
+    "story": "경로 탐색은 제공됩니다. 행동을 명령 문자열로 바꾸는 두 줄을 수정합니다.",
     "requirements": [
       "OT Stage 1의 학습 목표를 연습하는 8×8 독립 연습 맵입니다. 공식 랜덤 맵이나 공식 게임 엔진과 동일하지 않습니다.",
+      "이동·탐색 뼈대가 제공됩니다. 편집기의 TODO 부분을 수정하세요. 제공 함수는 읽고 활용하며, 정답 보기 탭에서 완성 코드와 비교할 수 있습니다.",
       "choose_action(state)가 매 턴 최신 상태를 받아 명령 문자열 하나를 반환하게 만드세요. 100턴 안에 생존 상태로 적 포탑 X를 파괴하면 통과합니다.",
       "state 키: height, width, grid, allies, enemies, codes, turn. allies[\"M\"]은 [체력, 방향, 일반탄, 메가탄], enemies[\"X\"]는 [적 포탑 체력]입니다. 좌표는 grid에서 찾습니다.",
       "U/D/L/R A로 한 칸 이동, 방향 + F로 일반탄, 방향 + F M으로 메가탄을 발사합니다. 방향과 행동을 결합해도 1턴입니다. 대기는 S입니다.",
@@ -17,7 +18,7 @@
       "전체 채점은 기본 맵과 좌우 반전 맵 두 개를 검사합니다. 좌표를 고정하지 마세요. 웹 연습 별점은 각 맵의 안내 기준으로 계산하며 공식 평가 점수로 전송되지 않습니다."
     ],
     "signature": "choose_action(state)",
-    "starter": "def choose_action(state):\n    grid = state[\"grid\"]\n    hp, direction, normal, mega = state[\"allies\"][\"M\"]\n\n    # 현재 맵에서 M과 X를 찾고 행동을 결정하세요.\n    # 예: \"U A\", \"R F\", \"L F M\", \"G 해독문\", \"S\"\n    return \"S\"\n",
+    "starter": "# WEB LAB SCAFFOLD v2 — Stage 1\n# [제공] 함수는 그대로 활용하고, TODO로 표시된 곳부터 수정하세요.\n# 웹 연습용 뼈대이며 공식 기본 코드 원문은 아닙니다.\nfrom collections import deque\n\n# [설정] 이동 가능한 지형과 사거리\nMOVE_CELLS = {\"G\", \"M\"}\nMAX_RANGE = 3\n\n# 좌표는 (행, 열)입니다. 행은 아래로, 열은 오른쪽으로 증가합니다.\n# 방향마다 (행 변화, 열 변화, 명령 문자)를 묶어 둡니다.\nDIRECTIONS = [(-1, 0, \"U\"), (0, 1, \"R\"), (1, 0, \"D\"), (0, -1, \"L\")]\n\n\ndef find_position(grid, name):\n    \"\"\"맵에서 내 탱크 M 또는 적 포탑 X의 위치를 찾습니다.\"\"\"\n    for row in range(len(grid)):\n        for col in range(len(grid[0])):\n            if grid[row][col] == name:\n                return (row, col)\n    raise ValueError(name + \"의 위치를 찾을 수 없습니다.\")\n\n\ndef shot_direction(grid, position, target, max_range):\n    \"\"\"직선으로 명중할 수 있으면 방향을, 불가능하면 None을 반환합니다.\"\"\"\n    for dr, dc, direction in DIRECTIONS:\n        for distance in range(1, max_range + 1):\n            row = position[0] + dr * distance\n            col = position[1] + dc * distance\n\n            if not (0 <= row < len(grid) and 0 <= col < len(grid[0])):\n                break  # 맵 밖으로 나가면 이 방향의 탐색을 멈춥니다.\n            if (row, col) == target:\n                return direction\n            if grid[row][col] not in (\"G\", \"W\", \"S\"):\n                break  # 바위, 나무, 보급소, 적 탱크는 포탄을 막습니다.\n    return None\n\n\ndef find_next_direction(grid, start, target, max_range):\n    \"\"\"BFS: 가까운 칸부터 살펴보고 사격 위치까지의 첫 이동을 찾습니다.\"\"\"\n    # 큐 항목: (현재 위치, 출발점에서 처음 이동할 방향)\n    queue = deque([(start, None)])\n    visited = {start}\n\n    while queue:\n        position, first_direction = queue.popleft()\n        if shot_direction(grid, position, target, max_range) is not None:\n            return first_direction\n\n        for dr, dc, direction in DIRECTIONS:\n            row = position[0] + dr\n            col = position[1] + dc\n            next_position = (row, col)\n            if not (0 <= row < len(grid) and 0 <= col < len(grid[0])):\n                continue\n            if next_position in visited:\n                continue\n            if grid[row][col] not in MOVE_CELLS:\n                continue  # 물 W, 바위 R 등을 밟지 않습니다.\n\n            visited.add(next_position)\n            # 첫 칸에서만 방향을 정하고, 이후에는 그 값을 그대로 전달합니다.\n            next_first = direction if first_direction is None else first_direction\n            queue.append((next_position, next_first))\n    return None\n\n\ndef choose_action(state):\n    # [제공] 최신 상태에서 내 위치와 포탑 위치를 찾습니다.\n    grid = state[\"grid\"]\n    me = find_position(grid, \"M\")\n    target = find_position(grid, \"X\")\n\n    # [판단] 명중할 수 있으면 먼저 사격합니다.\n    direction = shot_direction(grid, me, target, MAX_RANGE)\n    if direction is not None:\n        return \"S\"  # TODO 1: 방향 + 발사 명령\n\n    # [제공] BFS 결과 중 첫 이동만 실행하고, 다음 턴에 다시 판단합니다.\n    direction = find_next_direction(grid, me, target, MAX_RANGE)\n    if direction is not None:\n        return \"S\"  # TODO 2: 방향 + 이동 명령\n    return \"S\"\n",
     "tests": [
       {
         "name": "기본 연습 맵",
@@ -320,6 +321,42 @@
       "three": "7~99턴",
       "two": "별도 구간 없음",
       "one": "별도 구간 없음"
+    },
+    "legacyStarter": "def choose_action(state):\n    grid = state[\"grid\"]\n    hp, direction, normal, mega = state[\"allies\"][\"M\"]\n\n    # 현재 맵에서 M과 X를 찾고 행동을 결정하세요.\n    # 예: \"U A\", \"R F\", \"L F M\", \"G 해독문\", \"S\"\n    return \"S\"\n",
+    "scaffold": {
+      "version": 2,
+      "summary": "경로 탐색은 제공됩니다. 행동을 명령 문자열로 바꾸는 두 줄을 수정합니다.",
+      "provided": [
+        "M·X 위치 찾기와 맵 경계 검사",
+        "BFS 큐·방문 처리·첫 이동 방향 반환",
+        "직선 사거리와 장애물 판정"
+      ],
+      "tasks": [
+        "TODO 1: 사격할 때 대기 S 대신 방향 + ' F'를 반환하세요.",
+        "TODO 2: 이동할 때 대기 S 대신 방향 + ' A'를 반환하세요."
+      ]
+    },
+    "answer": {
+      "code": "# WEB LAB SCAFFOLD v2 — Stage 1\n# [완성] 제공 함수에 단계별 수정 사항을 반영한 코드입니다.\n# 웹 연습용 뼈대이며 공식 기본 코드 원문은 아닙니다.\nfrom collections import deque\n\n# [설정] 이동 가능한 지형과 사거리\nMOVE_CELLS = {\"G\", \"M\"}\nMAX_RANGE = 3\n\n# 좌표는 (행, 열)입니다. 행은 아래로, 열은 오른쪽으로 증가합니다.\n# 방향마다 (행 변화, 열 변화, 명령 문자)를 묶어 둡니다.\nDIRECTIONS = [(-1, 0, \"U\"), (0, 1, \"R\"), (1, 0, \"D\"), (0, -1, \"L\")]\n\n\ndef find_position(grid, name):\n    \"\"\"맵에서 내 탱크 M 또는 적 포탑 X의 위치를 찾습니다.\"\"\"\n    for row in range(len(grid)):\n        for col in range(len(grid[0])):\n            if grid[row][col] == name:\n                return (row, col)\n    raise ValueError(name + \"의 위치를 찾을 수 없습니다.\")\n\n\ndef shot_direction(grid, position, target, max_range):\n    \"\"\"직선으로 명중할 수 있으면 방향을, 불가능하면 None을 반환합니다.\"\"\"\n    for dr, dc, direction in DIRECTIONS:\n        for distance in range(1, max_range + 1):\n            row = position[0] + dr * distance\n            col = position[1] + dc * distance\n\n            if not (0 <= row < len(grid) and 0 <= col < len(grid[0])):\n                break  # 맵 밖으로 나가면 이 방향의 탐색을 멈춥니다.\n            if (row, col) == target:\n                return direction\n            if grid[row][col] not in (\"G\", \"W\", \"S\"):\n                break  # 바위, 나무, 보급소, 적 탱크는 포탄을 막습니다.\n    return None\n\n\ndef find_next_direction(grid, start, target, max_range):\n    \"\"\"BFS: 가까운 칸부터 살펴보고 사격 위치까지의 첫 이동을 찾습니다.\"\"\"\n    # 큐 항목: (현재 위치, 출발점에서 처음 이동할 방향)\n    queue = deque([(start, None)])\n    visited = {start}\n\n    while queue:\n        position, first_direction = queue.popleft()\n        if shot_direction(grid, position, target, max_range) is not None:\n            return first_direction\n\n        for dr, dc, direction in DIRECTIONS:\n            row = position[0] + dr\n            col = position[1] + dc\n            next_position = (row, col)\n            if not (0 <= row < len(grid) and 0 <= col < len(grid[0])):\n                continue\n            if next_position in visited:\n                continue\n            if grid[row][col] not in MOVE_CELLS:\n                continue  # 물 W, 바위 R 등을 밟지 않습니다.\n\n            visited.add(next_position)\n            # 첫 칸에서만 방향을 정하고, 이후에는 그 값을 그대로 전달합니다.\n            next_first = direction if first_direction is None else first_direction\n            queue.append((next_position, next_first))\n    return None\n\n\ndef choose_action(state):\n    # [제공] 최신 상태에서 내 위치와 포탑 위치를 찾습니다.\n    grid = state[\"grid\"]\n    me = find_position(grid, \"M\")\n    target = find_position(grid, \"X\")\n\n    # [판단] 명중할 수 있으면 먼저 사격합니다.\n    direction = shot_direction(grid, me, target, MAX_RANGE)\n    if direction is not None:\n        return direction + \" F\"\n\n    # [제공] BFS 결과 중 첫 이동만 실행하고, 다음 턴에 다시 판단합니다.\n    direction = find_next_direction(grid, me, target, MAX_RANGE)\n    if direction is not None:\n        return direction + \" A\"\n    return \"S\"\n",
+      "summary": "경로 탐색은 제공됩니다. 행동을 명령 문자열로 바꾸는 두 줄을 수정합니다.",
+      "steps": [
+        "TODO 1: 사격할 때 대기 S 대신 방향 + ' F'를 반환하세요.",
+        "TODO 2: 이동할 때 대기 S 대신 방향 + ' A'를 반환하세요."
+      ],
+      "path": "answers/stage_1.py",
+      "note": "현재 웹 연습 맵용 완성 코드입니다. 공식 게임의 통신 코드는 포함하지 않습니다.",
+      "validation": [
+        {
+          "name": "기본 연습 맵",
+          "turns": 12,
+          "stars": 3
+        },
+        {
+          "name": "좌우 반전 맵",
+          "turns": 12,
+          "stars": 3
+        }
+      ]
     }
   },
   {
@@ -330,9 +367,10 @@
     "group": "실습 문제",
     "minutes": 35,
     "concept": "BFS · 최소 이동 · 경로 선택",
-    "story": "OT의 단계별 요구사항을 직접 만든 연습 맵에서 구현하고, 턴별 리플레이로 확인하세요.",
+    "story": "BFS 큐·방문 처리·최단 경로 탐색은 제공됩니다. 탐색 함수를 행동 선택에 연결합니다.",
     "requirements": [
       "OT Stage 2의 학습 목표를 연습하는 8×8 독립 연습 맵입니다. 공식 랜덤 맵이나 공식 게임 엔진과 동일하지 않습니다.",
+      "이동·탐색 뼈대가 제공됩니다. 편집기의 TODO 부분을 수정하세요. 제공 함수는 읽고 활용하며, 정답 보기 탭에서 완성 코드와 비교할 수 있습니다.",
       "choose_action(state)가 매 턴 최신 상태를 받아 명령 문자열 하나를 반환하게 만드세요. 100턴 안에 생존 상태로 적 포탑 X를 파괴하면 통과합니다.",
       "state 키: height, width, grid, allies, enemies, codes, turn. allies[\"M\"]은 [체력, 방향, 일반탄, 메가탄], enemies[\"X\"]는 [적 포탑 체력]입니다. 좌표는 grid에서 찾습니다.",
       "U/D/L/R A로 한 칸 이동, 방향 + F로 일반탄, 방향 + F M으로 메가탄을 발사합니다. 방향과 행동을 결합해도 1턴입니다. 대기는 S입니다.",
@@ -340,7 +378,7 @@
       "전체 채점은 기본 맵과 좌우 반전 맵 두 개를 검사합니다. 좌표를 고정하지 마세요. 웹 연습 별점은 각 맵의 안내 기준으로 계산하며 공식 평가 점수로 전송되지 않습니다."
     ],
     "signature": "choose_action(state)",
-    "starter": "def choose_action(state):\n    grid = state[\"grid\"]\n    hp, direction, normal, mega = state[\"allies\"][\"M\"]\n\n    # 현재 맵에서 M과 X를 찾고 행동을 결정하세요.\n    # 예: \"U A\", \"R F\", \"L F M\", \"G 해독문\", \"S\"\n    return \"S\"\n",
+    "starter": "# WEB LAB SCAFFOLD v2 — Stage 2\n# [제공] 함수는 그대로 활용하고, TODO로 표시된 곳부터 수정하세요.\n# 웹 연습용 뼈대이며 공식 기본 코드 원문은 아닙니다.\nfrom collections import deque\n\n# [설정] 이동 가능한 지형과 사거리\nMOVE_CELLS = {\"G\", \"M\"}\nMAX_RANGE = 3\n\n# 좌표는 (행, 열)입니다. 행은 아래로, 열은 오른쪽으로 증가합니다.\n# 방향마다 (행 변화, 열 변화, 명령 문자)를 묶어 둡니다.\nDIRECTIONS = [(-1, 0, \"U\"), (0, 1, \"R\"), (1, 0, \"D\"), (0, -1, \"L\")]\n\n\ndef find_position(grid, name):\n    \"\"\"맵에서 내 탱크 M 또는 적 포탑 X의 위치를 찾습니다.\"\"\"\n    for row in range(len(grid)):\n        for col in range(len(grid[0])):\n            if grid[row][col] == name:\n                return (row, col)\n    raise ValueError(name + \"의 위치를 찾을 수 없습니다.\")\n\n\ndef shot_direction(grid, position, target, max_range):\n    \"\"\"직선으로 명중할 수 있으면 방향을, 불가능하면 None을 반환합니다.\"\"\"\n    for dr, dc, direction in DIRECTIONS:\n        for distance in range(1, max_range + 1):\n            row = position[0] + dr * distance\n            col = position[1] + dc * distance\n\n            if not (0 <= row < len(grid) and 0 <= col < len(grid[0])):\n                break  # 맵 밖으로 나가면 이 방향의 탐색을 멈춥니다.\n            if (row, col) == target:\n                return direction\n            if grid[row][col] not in (\"G\", \"W\", \"S\"):\n                break  # 바위, 나무, 보급소, 적 탱크는 포탄을 막습니다.\n    return None\n\n\ndef find_next_direction(grid, start, target, max_range):\n    \"\"\"BFS: 가까운 칸부터 살펴보고 사격 위치까지의 첫 이동을 찾습니다.\"\"\"\n    # 큐 항목: (현재 위치, 출발점에서 처음 이동할 방향)\n    queue = deque([(start, None)])\n    visited = {start}\n\n    while queue:\n        position, first_direction = queue.popleft()\n        if shot_direction(grid, position, target, max_range) is not None:\n            return first_direction\n\n        for dr, dc, direction in DIRECTIONS:\n            row = position[0] + dr\n            col = position[1] + dc\n            next_position = (row, col)\n            if not (0 <= row < len(grid) and 0 <= col < len(grid[0])):\n                continue\n            if next_position in visited:\n                continue\n            if grid[row][col] not in MOVE_CELLS:\n                continue  # 물 W, 바위 R 등을 밟지 않습니다.\n\n            visited.add(next_position)\n            # 첫 칸에서만 방향을 정하고, 이후에는 그 값을 그대로 전달합니다.\n            next_first = direction if first_direction is None else first_direction\n            queue.append((next_position, next_first))\n    return None\n\n\ndef choose_action(state):\n    # [제공] 최신 상태에서 내 위치와 포탑 위치를 찾습니다.\n    grid = state[\"grid\"]\n    me = find_position(grid, \"M\")\n    target = find_position(grid, \"X\")\n\n    # [판단] 명중할 수 있으면 먼저 사격합니다.\n    direction = shot_direction(grid, me, target, MAX_RANGE)\n    if direction is not None:\n        return direction + \" F\"\n\n    # [제공] BFS 결과 중 첫 이동만 실행하고, 다음 턴에 다시 판단합니다.\n    direction = None  # TODO 1: 제공된 BFS 함수 호출\n    if direction is not None:\n        return direction + \" A\"\n    return \"S\"\n",
     "tests": [
       {
         "name": "기본 연습 맵",
@@ -642,6 +680,40 @@
       "three": "19~21턴",
       "two": "22턴",
       "one": "23~99턴"
+    },
+    "legacyStarter": "def choose_action(state):\n    grid = state[\"grid\"]\n    hp, direction, normal, mega = state[\"allies\"][\"M\"]\n\n    # 현재 맵에서 M과 X를 찾고 행동을 결정하세요.\n    # 예: \"U A\", \"R F\", \"L F M\", \"G 해독문\", \"S\"\n    return \"S\"\n",
+    "scaffold": {
+      "version": 2,
+      "summary": "BFS 큐·방문 처리·최단 경로 탐색은 제공됩니다. 탐색 함수를 행동 선택에 연결합니다.",
+      "provided": [
+        "M·X 위치 찾기와 맵 경계 검사",
+        "BFS 큐·방문 처리·첫 이동 방향 반환",
+        "직선 사거리와 장애물 판정"
+      ],
+      "tasks": [
+        "TODO 1: 이동 방향을 None 대신 제공된 find_next_direction(...) 호출로 구하세요."
+      ]
+    },
+    "answer": {
+      "code": "# WEB LAB SCAFFOLD v2 — Stage 2\n# [완성] 제공 함수에 단계별 수정 사항을 반영한 코드입니다.\n# 웹 연습용 뼈대이며 공식 기본 코드 원문은 아닙니다.\nfrom collections import deque\n\n# [설정] 이동 가능한 지형과 사거리\nMOVE_CELLS = {\"G\", \"M\"}\nMAX_RANGE = 3\n\n# 좌표는 (행, 열)입니다. 행은 아래로, 열은 오른쪽으로 증가합니다.\n# 방향마다 (행 변화, 열 변화, 명령 문자)를 묶어 둡니다.\nDIRECTIONS = [(-1, 0, \"U\"), (0, 1, \"R\"), (1, 0, \"D\"), (0, -1, \"L\")]\n\n\ndef find_position(grid, name):\n    \"\"\"맵에서 내 탱크 M 또는 적 포탑 X의 위치를 찾습니다.\"\"\"\n    for row in range(len(grid)):\n        for col in range(len(grid[0])):\n            if grid[row][col] == name:\n                return (row, col)\n    raise ValueError(name + \"의 위치를 찾을 수 없습니다.\")\n\n\ndef shot_direction(grid, position, target, max_range):\n    \"\"\"직선으로 명중할 수 있으면 방향을, 불가능하면 None을 반환합니다.\"\"\"\n    for dr, dc, direction in DIRECTIONS:\n        for distance in range(1, max_range + 1):\n            row = position[0] + dr * distance\n            col = position[1] + dc * distance\n\n            if not (0 <= row < len(grid) and 0 <= col < len(grid[0])):\n                break  # 맵 밖으로 나가면 이 방향의 탐색을 멈춥니다.\n            if (row, col) == target:\n                return direction\n            if grid[row][col] not in (\"G\", \"W\", \"S\"):\n                break  # 바위, 나무, 보급소, 적 탱크는 포탄을 막습니다.\n    return None\n\n\ndef find_next_direction(grid, start, target, max_range):\n    \"\"\"BFS: 가까운 칸부터 살펴보고 사격 위치까지의 첫 이동을 찾습니다.\"\"\"\n    # 큐 항목: (현재 위치, 출발점에서 처음 이동할 방향)\n    queue = deque([(start, None)])\n    visited = {start}\n\n    while queue:\n        position, first_direction = queue.popleft()\n        if shot_direction(grid, position, target, max_range) is not None:\n            return first_direction\n\n        for dr, dc, direction in DIRECTIONS:\n            row = position[0] + dr\n            col = position[1] + dc\n            next_position = (row, col)\n            if not (0 <= row < len(grid) and 0 <= col < len(grid[0])):\n                continue\n            if next_position in visited:\n                continue\n            if grid[row][col] not in MOVE_CELLS:\n                continue  # 물 W, 바위 R 등을 밟지 않습니다.\n\n            visited.add(next_position)\n            # 첫 칸에서만 방향을 정하고, 이후에는 그 값을 그대로 전달합니다.\n            next_first = direction if first_direction is None else first_direction\n            queue.append((next_position, next_first))\n    return None\n\n\ndef choose_action(state):\n    # [제공] 최신 상태에서 내 위치와 포탑 위치를 찾습니다.\n    grid = state[\"grid\"]\n    me = find_position(grid, \"M\")\n    target = find_position(grid, \"X\")\n\n    # [판단] 명중할 수 있으면 먼저 사격합니다.\n    direction = shot_direction(grid, me, target, MAX_RANGE)\n    if direction is not None:\n        return direction + \" F\"\n\n    # [제공] BFS 결과 중 첫 이동만 실행하고, 다음 턴에 다시 판단합니다.\n    direction = find_next_direction(grid, me, target, MAX_RANGE)\n    if direction is not None:\n        return direction + \" A\"\n    return \"S\"\n",
+      "summary": "BFS 큐·방문 처리·최단 경로 탐색은 제공됩니다. 탐색 함수를 행동 선택에 연결합니다.",
+      "steps": [
+        "TODO 1: 이동 방향을 None 대신 제공된 find_next_direction(...) 호출로 구하세요."
+      ],
+      "path": "answers/stage_2.py",
+      "note": "현재 웹 연습 맵용 완성 코드입니다. 공식 게임의 통신 코드는 포함하지 않습니다.",
+      "validation": [
+        {
+          "name": "기본 연습 맵",
+          "turns": 12,
+          "stars": 3
+        },
+        {
+          "name": "좌우 반전 맵",
+          "turns": 12,
+          "stars": 3
+        }
+      ]
     }
   },
   {
@@ -652,9 +724,10 @@
     "group": "실습 문제",
     "minutes": 35,
     "concept": "이동 가능 지형 · 경계 검사",
-    "story": "OT의 단계별 요구사항을 직접 만든 연습 맵에서 구현하고, 턴별 리플레이로 확인하세요.",
+    "story": "물의 이동 규칙만 바꿉니다. 이동 가능 지형과 포탄 통과 지형을 구분합니다.",
     "requirements": [
       "OT Stage 3의 학습 목표를 연습하는 8×8 독립 연습 맵입니다. 공식 랜덤 맵이나 공식 게임 엔진과 동일하지 않습니다.",
+      "이동·탐색 뼈대가 제공됩니다. 편집기의 TODO 부분을 수정하세요. 제공 함수는 읽고 활용하며, 정답 보기 탭에서 완성 코드와 비교할 수 있습니다.",
       "choose_action(state)가 매 턴 최신 상태를 받아 명령 문자열 하나를 반환하게 만드세요. 100턴 안에 생존 상태로 적 포탑 X를 파괴하면 통과합니다.",
       "state 키: height, width, grid, allies, enemies, codes, turn. allies[\"M\"]은 [체력, 방향, 일반탄, 메가탄], enemies[\"X\"]는 [적 포탑 체력]입니다. 좌표는 grid에서 찾습니다.",
       "U/D/L/R A로 한 칸 이동, 방향 + F로 일반탄, 방향 + F M으로 메가탄을 발사합니다. 방향과 행동을 결합해도 1턴입니다. 대기는 S입니다.",
@@ -663,7 +736,7 @@
       "W는 이동할 수 없지만 포탄은 통과합니다. 물을 벽처럼 처리한 이동 탐색과 사격 판정을 구분하세요."
     ],
     "signature": "choose_action(state)",
-    "starter": "def choose_action(state):\n    grid = state[\"grid\"]\n    hp, direction, normal, mega = state[\"allies\"][\"M\"]\n\n    # 현재 맵에서 M과 X를 찾고 행동을 결정하세요.\n    # 예: \"U A\", \"R F\", \"L F M\", \"G 해독문\", \"S\"\n    return \"S\"\n",
+    "starter": "# WEB LAB SCAFFOLD v2 — Stage 3\n# [제공] 함수는 그대로 활용하고, TODO로 표시된 곳부터 수정하세요.\n# 웹 연습용 뼈대이며 공식 기본 코드 원문은 아닙니다.\nfrom collections import deque\n\n# [설정] 이동 가능한 지형과 사거리\nMOVE_CELLS = {\"G\", \"M\", \"W\"}  # TODO 1: 이동 금지 지형 제외\nMAX_RANGE = 3\n\n# 좌표는 (행, 열)입니다. 행은 아래로, 열은 오른쪽으로 증가합니다.\n# 방향마다 (행 변화, 열 변화, 명령 문자)를 묶어 둡니다.\nDIRECTIONS = [(-1, 0, \"U\"), (0, 1, \"R\"), (1, 0, \"D\"), (0, -1, \"L\")]\n\n\ndef find_position(grid, name):\n    \"\"\"맵에서 내 탱크 M 또는 적 포탑 X의 위치를 찾습니다.\"\"\"\n    for row in range(len(grid)):\n        for col in range(len(grid[0])):\n            if grid[row][col] == name:\n                return (row, col)\n    raise ValueError(name + \"의 위치를 찾을 수 없습니다.\")\n\n\ndef shot_direction(grid, position, target, max_range):\n    \"\"\"직선으로 명중할 수 있으면 방향을, 불가능하면 None을 반환합니다.\"\"\"\n    for dr, dc, direction in DIRECTIONS:\n        for distance in range(1, max_range + 1):\n            row = position[0] + dr * distance\n            col = position[1] + dc * distance\n\n            if not (0 <= row < len(grid) and 0 <= col < len(grid[0])):\n                break  # 맵 밖으로 나가면 이 방향의 탐색을 멈춥니다.\n            if (row, col) == target:\n                return direction\n            if grid[row][col] not in (\"G\", \"W\", \"S\"):\n                break  # 바위, 나무, 보급소, 적 탱크는 포탄을 막습니다.\n    return None\n\n\ndef find_next_direction(grid, start, target, max_range):\n    \"\"\"BFS: 가까운 칸부터 살펴보고 사격 위치까지의 첫 이동을 찾습니다.\"\"\"\n    # 큐 항목: (현재 위치, 출발점에서 처음 이동할 방향)\n    queue = deque([(start, None)])\n    visited = {start}\n\n    while queue:\n        position, first_direction = queue.popleft()\n        if shot_direction(grid, position, target, max_range) is not None:\n            return first_direction\n\n        for dr, dc, direction in DIRECTIONS:\n            row = position[0] + dr\n            col = position[1] + dc\n            next_position = (row, col)\n            if not (0 <= row < len(grid) and 0 <= col < len(grid[0])):\n                continue\n            if next_position in visited:\n                continue\n            if grid[row][col] not in MOVE_CELLS:\n                continue  # 물 W, 바위 R 등을 밟지 않습니다.\n\n            visited.add(next_position)\n            # 첫 칸에서만 방향을 정하고, 이후에는 그 값을 그대로 전달합니다.\n            next_first = direction if first_direction is None else first_direction\n            queue.append((next_position, next_first))\n    return None\n\n\ndef choose_action(state):\n    # [제공] 최신 상태에서 내 위치와 포탑 위치를 찾습니다.\n    grid = state[\"grid\"]\n    me = find_position(grid, \"M\")\n    target = find_position(grid, \"X\")\n\n    # [판단] 명중할 수 있으면 먼저 사격합니다.\n    direction = shot_direction(grid, me, target, MAX_RANGE)\n    if direction is not None:\n        return direction + \" F\"\n\n    # [제공] BFS 결과 중 첫 이동만 실행하고, 다음 턴에 다시 판단합니다.\n    direction = find_next_direction(grid, me, target, MAX_RANGE)\n    if direction is not None:\n        return direction + \" A\"\n    return \"S\"\n",
     "tests": [
       {
         "name": "기본 연습 맵",
@@ -966,6 +1039,40 @@
       "three": "15~19턴",
       "two": "20~25턴",
       "one": "26~99턴"
+    },
+    "legacyStarter": "def choose_action(state):\n    grid = state[\"grid\"]\n    hp, direction, normal, mega = state[\"allies\"][\"M\"]\n\n    # 현재 맵에서 M과 X를 찾고 행동을 결정하세요.\n    # 예: \"U A\", \"R F\", \"L F M\", \"G 해독문\", \"S\"\n    return \"S\"\n",
+    "scaffold": {
+      "version": 2,
+      "summary": "물의 이동 규칙만 바꿉니다. 이동 가능 지형과 포탄 통과 지형을 구분합니다.",
+      "provided": [
+        "M·X 위치 찾기와 맵 경계 검사",
+        "BFS 큐·방문 처리·첫 이동 방향 반환",
+        "직선 사거리와 장애물 판정"
+      ],
+      "tasks": [
+        "TODO 1: MOVE_CELLS에서 이동할 수 없는 물 W를 제외하세요. 사격 함수의 W는 유지하세요."
+      ]
+    },
+    "answer": {
+      "code": "# WEB LAB SCAFFOLD v2 — Stage 3\n# [완성] 제공 함수에 단계별 수정 사항을 반영한 코드입니다.\n# 웹 연습용 뼈대이며 공식 기본 코드 원문은 아닙니다.\nfrom collections import deque\n\n# [설정] 이동 가능한 지형과 사거리\nMOVE_CELLS = {\"G\", \"M\"}\nMAX_RANGE = 3\n\n# 좌표는 (행, 열)입니다. 행은 아래로, 열은 오른쪽으로 증가합니다.\n# 방향마다 (행 변화, 열 변화, 명령 문자)를 묶어 둡니다.\nDIRECTIONS = [(-1, 0, \"U\"), (0, 1, \"R\"), (1, 0, \"D\"), (0, -1, \"L\")]\n\n\ndef find_position(grid, name):\n    \"\"\"맵에서 내 탱크 M 또는 적 포탑 X의 위치를 찾습니다.\"\"\"\n    for row in range(len(grid)):\n        for col in range(len(grid[0])):\n            if grid[row][col] == name:\n                return (row, col)\n    raise ValueError(name + \"의 위치를 찾을 수 없습니다.\")\n\n\ndef shot_direction(grid, position, target, max_range):\n    \"\"\"직선으로 명중할 수 있으면 방향을, 불가능하면 None을 반환합니다.\"\"\"\n    for dr, dc, direction in DIRECTIONS:\n        for distance in range(1, max_range + 1):\n            row = position[0] + dr * distance\n            col = position[1] + dc * distance\n\n            if not (0 <= row < len(grid) and 0 <= col < len(grid[0])):\n                break  # 맵 밖으로 나가면 이 방향의 탐색을 멈춥니다.\n            if (row, col) == target:\n                return direction\n            if grid[row][col] not in (\"G\", \"W\", \"S\"):\n                break  # 바위, 나무, 보급소, 적 탱크는 포탄을 막습니다.\n    return None\n\n\ndef find_next_direction(grid, start, target, max_range):\n    \"\"\"BFS: 가까운 칸부터 살펴보고 사격 위치까지의 첫 이동을 찾습니다.\"\"\"\n    # 큐 항목: (현재 위치, 출발점에서 처음 이동할 방향)\n    queue = deque([(start, None)])\n    visited = {start}\n\n    while queue:\n        position, first_direction = queue.popleft()\n        if shot_direction(grid, position, target, max_range) is not None:\n            return first_direction\n\n        for dr, dc, direction in DIRECTIONS:\n            row = position[0] + dr\n            col = position[1] + dc\n            next_position = (row, col)\n            if not (0 <= row < len(grid) and 0 <= col < len(grid[0])):\n                continue\n            if next_position in visited:\n                continue\n            if grid[row][col] not in MOVE_CELLS:\n                continue  # 물 W, 바위 R 등을 밟지 않습니다.\n\n            visited.add(next_position)\n            # 첫 칸에서만 방향을 정하고, 이후에는 그 값을 그대로 전달합니다.\n            next_first = direction if first_direction is None else first_direction\n            queue.append((next_position, next_first))\n    return None\n\n\ndef choose_action(state):\n    # [제공] 최신 상태에서 내 위치와 포탑 위치를 찾습니다.\n    grid = state[\"grid\"]\n    me = find_position(grid, \"M\")\n    target = find_position(grid, \"X\")\n\n    # [판단] 명중할 수 있으면 먼저 사격합니다.\n    direction = shot_direction(grid, me, target, MAX_RANGE)\n    if direction is not None:\n        return direction + \" F\"\n\n    # [제공] BFS 결과 중 첫 이동만 실행하고, 다음 턴에 다시 판단합니다.\n    direction = find_next_direction(grid, me, target, MAX_RANGE)\n    if direction is not None:\n        return direction + \" A\"\n    return \"S\"\n",
+      "summary": "물의 이동 규칙만 바꿉니다. 이동 가능 지형과 포탄 통과 지형을 구분합니다.",
+      "steps": [
+        "TODO 1: MOVE_CELLS에서 이동할 수 없는 물 W를 제외하세요. 사격 함수의 W는 유지하세요."
+      ],
+      "path": "answers/stage_3.py",
+      "note": "현재 웹 연습 맵용 완성 코드입니다. 공식 게임의 통신 코드는 포함하지 않습니다.",
+      "validation": [
+        {
+          "name": "기본 연습 맵",
+          "turns": 12,
+          "stars": 3
+        },
+        {
+          "name": "좌우 반전 맵",
+          "turns": 12,
+          "stars": 3
+        }
+      ]
     }
   },
   {
@@ -976,9 +1083,10 @@
     "group": "실습 문제",
     "minutes": 45,
     "concept": "공격 위치 탐색 · 사거리 · 턴 최적화",
-    "story": "OT의 단계별 요구사항을 직접 만든 연습 맵에서 구현하고, 턴별 리플레이로 확인하세요.",
+    "story": "사거리 설정 한 곳을 바꿔 가장 가까운 사격 위치를 탐색합니다.",
     "requirements": [
       "OT Stage 4의 학습 목표를 연습하는 8×8 독립 연습 맵입니다. 공식 랜덤 맵이나 공식 게임 엔진과 동일하지 않습니다.",
+      "이동·탐색 뼈대가 제공됩니다. 편집기의 TODO 부분을 수정하세요. 제공 함수는 읽고 활용하며, 정답 보기 탭에서 완성 코드와 비교할 수 있습니다.",
       "choose_action(state)가 매 턴 최신 상태를 받아 명령 문자열 하나를 반환하게 만드세요. 100턴 안에 생존 상태로 적 포탑 X를 파괴하면 통과합니다.",
       "state 키: height, width, grid, allies, enemies, codes, turn. allies[\"M\"]은 [체력, 방향, 일반탄, 메가탄], enemies[\"X\"]는 [적 포탑 체력]입니다. 좌표는 grid에서 찾습니다.",
       "U/D/L/R A로 한 칸 이동, 방향 + F로 일반탄, 방향 + F M으로 메가탄을 발사합니다. 방향과 행동을 결합해도 1턴입니다. 대기는 S입니다.",
@@ -987,7 +1095,7 @@
       "OT에서 Stage 4는 Pass 핵심 단계로 안내됩니다. 포탑에 가까이 붙기보다 사거리 안에서 가장 빨리 발사할 수 있는 위치를 찾으세요."
     ],
     "signature": "choose_action(state)",
-    "starter": "def choose_action(state):\n    grid = state[\"grid\"]\n    hp, direction, normal, mega = state[\"allies\"][\"M\"]\n\n    # 현재 맵에서 M과 X를 찾고 행동을 결정하세요.\n    # 예: \"U A\", \"R F\", \"L F M\", \"G 해독문\", \"S\"\n    return \"S\"\n",
+    "starter": "# WEB LAB SCAFFOLD v2 — Stage 4\n# [제공] 함수는 그대로 활용하고, TODO로 표시된 곳부터 수정하세요.\n# 웹 연습용 뼈대이며 공식 기본 코드 원문은 아닙니다.\nfrom collections import deque\n\n# [설정] 이동 가능한 지형과 사거리\nMOVE_CELLS = {\"G\", \"M\"}\nMAX_RANGE = 1  # TODO 1: 실제 사거리 적용\n\n# 좌표는 (행, 열)입니다. 행은 아래로, 열은 오른쪽으로 증가합니다.\n# 방향마다 (행 변화, 열 변화, 명령 문자)를 묶어 둡니다.\nDIRECTIONS = [(-1, 0, \"U\"), (0, 1, \"R\"), (1, 0, \"D\"), (0, -1, \"L\")]\n\n\ndef find_position(grid, name):\n    \"\"\"맵에서 내 탱크 M 또는 적 포탑 X의 위치를 찾습니다.\"\"\"\n    for row in range(len(grid)):\n        for col in range(len(grid[0])):\n            if grid[row][col] == name:\n                return (row, col)\n    raise ValueError(name + \"의 위치를 찾을 수 없습니다.\")\n\n\ndef shot_direction(grid, position, target, max_range):\n    \"\"\"직선으로 명중할 수 있으면 방향을, 불가능하면 None을 반환합니다.\"\"\"\n    for dr, dc, direction in DIRECTIONS:\n        for distance in range(1, max_range + 1):\n            row = position[0] + dr * distance\n            col = position[1] + dc * distance\n\n            if not (0 <= row < len(grid) and 0 <= col < len(grid[0])):\n                break  # 맵 밖으로 나가면 이 방향의 탐색을 멈춥니다.\n            if (row, col) == target:\n                return direction\n            if grid[row][col] not in (\"G\", \"W\", \"S\"):\n                break  # 바위, 나무, 보급소, 적 탱크는 포탄을 막습니다.\n    return None\n\n\ndef find_next_direction(grid, start, target, max_range):\n    \"\"\"BFS: 가까운 칸부터 살펴보고 사격 위치까지의 첫 이동을 찾습니다.\"\"\"\n    # 큐 항목: (현재 위치, 출발점에서 처음 이동할 방향)\n    queue = deque([(start, None)])\n    visited = {start}\n\n    while queue:\n        position, first_direction = queue.popleft()\n        if shot_direction(grid, position, target, max_range) is not None:\n            return first_direction\n\n        for dr, dc, direction in DIRECTIONS:\n            row = position[0] + dr\n            col = position[1] + dc\n            next_position = (row, col)\n            if not (0 <= row < len(grid) and 0 <= col < len(grid[0])):\n                continue\n            if next_position in visited:\n                continue\n            if grid[row][col] not in MOVE_CELLS:\n                continue  # 물 W, 바위 R 등을 밟지 않습니다.\n\n            visited.add(next_position)\n            # 첫 칸에서만 방향을 정하고, 이후에는 그 값을 그대로 전달합니다.\n            next_first = direction if first_direction is None else first_direction\n            queue.append((next_position, next_first))\n    return None\n\n\ndef choose_action(state):\n    # [제공] 최신 상태에서 내 위치와 포탑 위치를 찾습니다.\n    grid = state[\"grid\"]\n    me = find_position(grid, \"M\")\n    target = find_position(grid, \"X\")\n\n    # [판단] 명중할 수 있으면 먼저 사격합니다.\n    direction = shot_direction(grid, me, target, MAX_RANGE)\n    if direction is not None:\n        return direction + \" F\"\n\n    # [제공] BFS 결과 중 첫 이동만 실행하고, 다음 턴에 다시 판단합니다.\n    direction = find_next_direction(grid, me, target, MAX_RANGE)\n    if direction is not None:\n        return direction + \" A\"\n    return \"S\"\n",
     "tests": [
       {
         "name": "기본 연습 맵",
@@ -1290,6 +1398,40 @@
       "three": "13턴",
       "two": "14턴",
       "one": "15~99턴"
+    },
+    "legacyStarter": "def choose_action(state):\n    grid = state[\"grid\"]\n    hp, direction, normal, mega = state[\"allies\"][\"M\"]\n\n    # 현재 맵에서 M과 X를 찾고 행동을 결정하세요.\n    # 예: \"U A\", \"R F\", \"L F M\", \"G 해독문\", \"S\"\n    return \"S\"\n",
+    "scaffold": {
+      "version": 2,
+      "summary": "사거리 설정 한 곳을 바꿔 가장 가까운 사격 위치를 탐색합니다.",
+      "provided": [
+        "M·X 위치 찾기와 맵 경계 검사",
+        "BFS 큐·방문 처리·첫 이동 방향 반환",
+        "직선 사거리와 장애물 판정"
+      ],
+      "tasks": [
+        "TODO 1: MAX_RANGE를 1에서 실제 사거리 3으로 바꾸고 턴 수를 비교하세요. 목표는 두 맵 모두 별 3개입니다."
+      ]
+    },
+    "answer": {
+      "code": "# WEB LAB SCAFFOLD v2 — Stage 4\n# [완성] 제공 함수에 단계별 수정 사항을 반영한 코드입니다.\n# 웹 연습용 뼈대이며 공식 기본 코드 원문은 아닙니다.\nfrom collections import deque\n\n# [설정] 이동 가능한 지형과 사거리\nMOVE_CELLS = {\"G\", \"M\"}\nMAX_RANGE = 3\n\n# 좌표는 (행, 열)입니다. 행은 아래로, 열은 오른쪽으로 증가합니다.\n# 방향마다 (행 변화, 열 변화, 명령 문자)를 묶어 둡니다.\nDIRECTIONS = [(-1, 0, \"U\"), (0, 1, \"R\"), (1, 0, \"D\"), (0, -1, \"L\")]\n\n\ndef find_position(grid, name):\n    \"\"\"맵에서 내 탱크 M 또는 적 포탑 X의 위치를 찾습니다.\"\"\"\n    for row in range(len(grid)):\n        for col in range(len(grid[0])):\n            if grid[row][col] == name:\n                return (row, col)\n    raise ValueError(name + \"의 위치를 찾을 수 없습니다.\")\n\n\ndef shot_direction(grid, position, target, max_range):\n    \"\"\"직선으로 명중할 수 있으면 방향을, 불가능하면 None을 반환합니다.\"\"\"\n    for dr, dc, direction in DIRECTIONS:\n        for distance in range(1, max_range + 1):\n            row = position[0] + dr * distance\n            col = position[1] + dc * distance\n\n            if not (0 <= row < len(grid) and 0 <= col < len(grid[0])):\n                break  # 맵 밖으로 나가면 이 방향의 탐색을 멈춥니다.\n            if (row, col) == target:\n                return direction\n            if grid[row][col] not in (\"G\", \"W\", \"S\"):\n                break  # 바위, 나무, 보급소, 적 탱크는 포탄을 막습니다.\n    return None\n\n\ndef find_next_direction(grid, start, target, max_range):\n    \"\"\"BFS: 가까운 칸부터 살펴보고 사격 위치까지의 첫 이동을 찾습니다.\"\"\"\n    # 큐 항목: (현재 위치, 출발점에서 처음 이동할 방향)\n    queue = deque([(start, None)])\n    visited = {start}\n\n    while queue:\n        position, first_direction = queue.popleft()\n        if shot_direction(grid, position, target, max_range) is not None:\n            return first_direction\n\n        for dr, dc, direction in DIRECTIONS:\n            row = position[0] + dr\n            col = position[1] + dc\n            next_position = (row, col)\n            if not (0 <= row < len(grid) and 0 <= col < len(grid[0])):\n                continue\n            if next_position in visited:\n                continue\n            if grid[row][col] not in MOVE_CELLS:\n                continue  # 물 W, 바위 R 등을 밟지 않습니다.\n\n            visited.add(next_position)\n            # 첫 칸에서만 방향을 정하고, 이후에는 그 값을 그대로 전달합니다.\n            next_first = direction if first_direction is None else first_direction\n            queue.append((next_position, next_first))\n    return None\n\n\ndef choose_action(state):\n    # [제공] 최신 상태에서 내 위치와 포탑 위치를 찾습니다.\n    grid = state[\"grid\"]\n    me = find_position(grid, \"M\")\n    target = find_position(grid, \"X\")\n\n    # [판단] 명중할 수 있으면 먼저 사격합니다.\n    direction = shot_direction(grid, me, target, MAX_RANGE)\n    if direction is not None:\n        return direction + \" F\"\n\n    # [제공] BFS 결과 중 첫 이동만 실행하고, 다음 턴에 다시 판단합니다.\n    direction = find_next_direction(grid, me, target, MAX_RANGE)\n    if direction is not None:\n        return direction + \" A\"\n    return \"S\"\n",
+      "summary": "사거리 설정 한 곳을 바꿔 가장 가까운 사격 위치를 탐색합니다.",
+      "steps": [
+        "TODO 1: MAX_RANGE를 1에서 실제 사거리 3으로 바꾸고 턴 수를 비교하세요. 목표는 두 맵 모두 별 3개입니다."
+      ],
+      "path": "answers/stage_4.py",
+      "note": "현재 웹 연습 맵용 완성 코드입니다. 공식 게임의 통신 코드는 포함하지 않습니다.",
+      "validation": [
+        {
+          "name": "기본 연습 맵",
+          "turns": 10,
+          "stars": 3
+        },
+        {
+          "name": "좌우 반전 맵",
+          "turns": 10,
+          "stars": 3
+        }
+      ]
     }
   },
   {
@@ -1300,9 +1442,10 @@
     "group": "실습 문제",
     "minutes": 50,
     "concept": "파괴 후 이동 · 탄약 선택 · 재탐색",
-    "story": "OT의 단계별 요구사항을 직접 만든 연습 맵에서 구현하고, 턴별 리플레이로 확인하세요.",
+    "story": "비용 경로 탐색은 제공됩니다. 나무 통과 비용과 제거 명령을 수정합니다.",
     "requirements": [
       "OT Stage 5의 학습 목표를 연습하는 10×10 독립 연습 맵입니다. 공식 랜덤 맵이나 공식 게임 엔진과 동일하지 않습니다.",
+      "이동·탐색 뼈대가 제공됩니다. 편집기의 TODO 부분을 수정하세요. 제공 함수는 읽고 활용하며, 정답 보기 탭에서 완성 코드와 비교할 수 있습니다.",
       "choose_action(state)가 매 턴 최신 상태를 받아 명령 문자열 하나를 반환하게 만드세요. 100턴 안에 생존 상태로 적 포탑 X를 파괴하면 통과합니다.",
       "state 키: height, width, grid, allies, enemies, codes, turn. allies[\"M\"]은 [체력, 방향, 일반탄, 메가탄], enemies[\"X\"]는 [적 포탑 체력]입니다. 좌표는 grid에서 찾습니다.",
       "U/D/L/R A로 한 칸 이동, 방향 + F로 일반탄, 방향 + F M으로 메가탄을 발사합니다. 방향과 행동을 결합해도 1턴입니다. 대기는 S입니다.",
@@ -1311,7 +1454,7 @@
       "초기 일반탄 1개, 메가탄 2개입니다. T는 어느 포탄이든 한 발로 제거되며 제거된 칸은 이후 G로 유지됩니다. 발사 후 이동은 별도 턴입니다."
     ],
     "signature": "choose_action(state)",
-    "starter": "def choose_action(state):\n    grid = state[\"grid\"]\n    hp, direction, normal, mega = state[\"allies\"][\"M\"]\n\n    # 현재 맵에서 M과 X를 찾고 행동을 결정하세요.\n    # 예: \"U A\", \"R F\", \"L F M\", \"G 해독문\", \"S\"\n    return \"S\"\n",
+    "starter": "# WEB LAB SCAFFOLD v2 — Stage 5\n# [제공] 함수는 그대로 활용하고, TODO로 표시된 곳부터 수정하세요.\n# 웹 연습용 뼈대이며 공식 기본 코드 원문은 아닙니다.\n\"\"\"Stage 5: 나무를 제거하는 턴까지 계산해서 이동합니다.\"\"\"\nimport heapq\n\nTREE_COST = 1  # TODO 1: 나무 통과 비용 계산\n\n# 좌표는 (행, 열)입니다. 행은 아래로, 열은 오른쪽으로 증가합니다.\n# 방향마다 (행 변화, 열 변화, 명령 문자)를 묶어 둡니다.\nDIRECTIONS = [(-1, 0, \"U\"), (0, 1, \"R\"), (1, 0, \"D\"), (0, -1, \"L\")]\n\n\ndef find_position(grid, name):\n    \"\"\"맵에서 내 탱크 M 또는 적 포탑 X의 위치를 찾습니다.\"\"\"\n    for row in range(len(grid)):\n        for col in range(len(grid[0])):\n            if grid[row][col] == name:\n                return (row, col)\n    raise ValueError(name + \"의 위치를 찾을 수 없습니다.\")\n\n\ndef shot_direction(grid, position, target, max_range):\n    \"\"\"직선으로 명중할 수 있으면 방향을, 불가능하면 None을 반환합니다.\"\"\"\n    for dr, dc, direction in DIRECTIONS:\n        for distance in range(1, max_range + 1):\n            row = position[0] + dr * distance\n            col = position[1] + dc * distance\n\n            if not (0 <= row < len(grid) and 0 <= col < len(grid[0])):\n                break  # 맵 밖으로 나가면 이 방향의 탐색을 멈춥니다.\n            if (row, col) == target:\n                return direction\n            if grid[row][col] not in (\"G\", \"W\", \"S\"):\n                break  # 바위, 나무, 보급소, 적 탱크는 포탄을 막습니다.\n    return None\n\n\ndef find_first_step(grid, start, goals):\n    \"\"\"다익스트라: 이동 1턴, 나무 제거 후 이동 2턴으로 경로를 비교합니다.\"\"\"\n    # 큐 항목: (누적 턴 수, 현재 위치, 지나온 경로)\n    queue = [(0, start, [])]\n    best_cost = {start: 0}\n\n    while queue:\n        cost, position, path = heapq.heappop(queue)\n        if cost != best_cost[position]:\n            continue  # 더 좋은 경로를 이미 찾았다면 예전 후보는 건너뜁니다.\n        if position in goals:\n            return path[0] if path else None\n\n        for dr, dc, direction in DIRECTIONS:\n            row = position[0] + dr\n            col = position[1] + dc\n            next_position = (row, col)\n            if not (0 <= row < len(grid) and 0 <= col < len(grid[0])):\n                continue\n            if grid[row][col] not in (\"G\", \"M\", \"T\"):\n                continue  # 적 탱크 E1의 현재 위치도 피합니다.\n\n            step_cost = TREE_COST if grid[row][col] == \"T\" else 1\n            new_cost = cost + step_cost\n            if new_cost < best_cost.get(next_position, float(\"inf\")):\n                best_cost[next_position] = new_cost\n                new_path = path + [(row, col, direction)]\n                heapq.heappush(queue, (new_cost, next_position, new_path))\n    return None\n\n\ndef move_or_clear(grid, first_step, normal, mega):\n    \"\"\"다음 칸이 나무면 먼저 쏘고, 빈 땅이면 한 칸 이동합니다.\"\"\"\n    if first_step is None:\n        return \"S\"\n    row, col, direction = first_step\n    if grid[row][col] == \"T\":\n        # TODO 2: 나무를 제거할 탄약을 선택해 발사 명령을 반환하세요.\n        return \"S\"\n    return direction + \" A\"\n\n\ndef attack_command(direction, target_hp, normal, mega):\n    \"\"\"한 발로 끝낼 수 있으면 일반탄, 그렇지 않으면 메가탄을 우선합니다.\"\"\"\n    if normal > 0 and target_hp <= 30:\n        return direction + \" F\"\n    if mega > 0:\n        return direction + \" F M\"\n    if normal > 0:\n        return direction + \" F\"\n    return \"S\"\n\n\ndef choose_action(state):\n    grid = state[\"grid\"]\n    me = find_position(grid, \"M\")\n    target = find_position(grid, \"X\")\n    hp, facing, normal, mega = state[\"allies\"][\"M\"]\n    target_hp = state[\"enemies\"][\"X\"][0]\n\n    direction = shot_direction(grid, me, target, 3)\n    if direction is not None:\n        return attack_command(direction, target_hp, normal, mega)\n\n    # 목표는 포탑 칸이 아니라 '포탑을 맞힐 수 있는 빈 칸'입니다.\n    goals = set()\n    for row in range(len(grid)):\n        for col in range(len(grid[0])):\n            if grid[row][col] in (\"G\", \"M\"):\n                if shot_direction(grid, (row, col), target, 3) is not None:\n                    goals.add((row, col))\n\n    first_step = find_first_step(grid, me, goals)\n    return move_or_clear(grid, first_step, normal, mega)\n",
     "tests": [
       {
         "name": "기본 연습 맵",
@@ -1734,6 +1877,42 @@
       "three": "21턴",
       "two": "22턴",
       "one": "23~99턴"
+    },
+    "legacyStarter": "def choose_action(state):\n    grid = state[\"grid\"]\n    hp, direction, normal, mega = state[\"allies\"][\"M\"]\n\n    # 현재 맵에서 M과 X를 찾고 행동을 결정하세요.\n    # 예: \"U A\", \"R F\", \"L F M\", \"G 해독문\", \"S\"\n    return \"S\"\n",
+    "scaffold": {
+      "version": 2,
+      "summary": "비용 경로 탐색은 제공됩니다. 나무 통과 비용과 제거 명령을 수정합니다.",
+      "provided": [
+        "M·X 위치 찾기와 사격 판정",
+        "나무 통과 비용을 반영하는 다익스트라 경로 탐색",
+        "매 턴 최신 맵으로 재탐색하고 첫 행동 반환"
+      ],
+      "tasks": [
+        "TODO 1: TREE_COST를 나무 제거 1턴 + 이동 1턴에 맞게 수정하세요.",
+        "TODO 2: 나무 앞에서 대기하는 대신 일반탄을 먼저, 없으면 메가탄을 발사하세요."
+      ]
+    },
+    "answer": {
+      "code": "# WEB LAB SCAFFOLD v2 — Stage 5\n# [완성] 제공 함수에 단계별 수정 사항을 반영한 코드입니다.\n# 웹 연습용 뼈대이며 공식 기본 코드 원문은 아닙니다.\n\"\"\"Stage 5: 나무를 제거하는 턴까지 계산해서 이동합니다.\"\"\"\nimport heapq\n\nTREE_COST = 2  # 제거 1턴 + 이동 1턴\n\n# 좌표는 (행, 열)입니다. 행은 아래로, 열은 오른쪽으로 증가합니다.\n# 방향마다 (행 변화, 열 변화, 명령 문자)를 묶어 둡니다.\nDIRECTIONS = [(-1, 0, \"U\"), (0, 1, \"R\"), (1, 0, \"D\"), (0, -1, \"L\")]\n\n\ndef find_position(grid, name):\n    \"\"\"맵에서 내 탱크 M 또는 적 포탑 X의 위치를 찾습니다.\"\"\"\n    for row in range(len(grid)):\n        for col in range(len(grid[0])):\n            if grid[row][col] == name:\n                return (row, col)\n    raise ValueError(name + \"의 위치를 찾을 수 없습니다.\")\n\n\ndef shot_direction(grid, position, target, max_range):\n    \"\"\"직선으로 명중할 수 있으면 방향을, 불가능하면 None을 반환합니다.\"\"\"\n    for dr, dc, direction in DIRECTIONS:\n        for distance in range(1, max_range + 1):\n            row = position[0] + dr * distance\n            col = position[1] + dc * distance\n\n            if not (0 <= row < len(grid) and 0 <= col < len(grid[0])):\n                break  # 맵 밖으로 나가면 이 방향의 탐색을 멈춥니다.\n            if (row, col) == target:\n                return direction\n            if grid[row][col] not in (\"G\", \"W\", \"S\"):\n                break  # 바위, 나무, 보급소, 적 탱크는 포탄을 막습니다.\n    return None\n\n\ndef find_first_step(grid, start, goals):\n    \"\"\"다익스트라: 이동 1턴, 나무 제거 후 이동 2턴으로 경로를 비교합니다.\"\"\"\n    # 큐 항목: (누적 턴 수, 현재 위치, 지나온 경로)\n    queue = [(0, start, [])]\n    best_cost = {start: 0}\n\n    while queue:\n        cost, position, path = heapq.heappop(queue)\n        if cost != best_cost[position]:\n            continue  # 더 좋은 경로를 이미 찾았다면 예전 후보는 건너뜁니다.\n        if position in goals:\n            return path[0] if path else None\n\n        for dr, dc, direction in DIRECTIONS:\n            row = position[0] + dr\n            col = position[1] + dc\n            next_position = (row, col)\n            if not (0 <= row < len(grid) and 0 <= col < len(grid[0])):\n                continue\n            if grid[row][col] not in (\"G\", \"M\", \"T\"):\n                continue  # 적 탱크 E1의 현재 위치도 피합니다.\n\n            step_cost = TREE_COST if grid[row][col] == \"T\" else 1\n            new_cost = cost + step_cost\n            if new_cost < best_cost.get(next_position, float(\"inf\")):\n                best_cost[next_position] = new_cost\n                new_path = path + [(row, col, direction)]\n                heapq.heappush(queue, (new_cost, next_position, new_path))\n    return None\n\n\ndef move_or_clear(grid, first_step, normal, mega):\n    \"\"\"다음 칸이 나무면 먼저 쏘고, 빈 땅이면 한 칸 이동합니다.\"\"\"\n    if first_step is None:\n        return \"S\"\n    row, col, direction = first_step\n    if grid[row][col] == \"T\":\n        if normal > 0:\n            return direction + \" F\"\n        if mega > 0:\n            return direction + \" F M\"\n        return \"S\"\n    return direction + \" A\"\n\n\ndef attack_command(direction, target_hp, normal, mega):\n    \"\"\"한 발로 끝낼 수 있으면 일반탄, 그렇지 않으면 메가탄을 우선합니다.\"\"\"\n    if normal > 0 and target_hp <= 30:\n        return direction + \" F\"\n    if mega > 0:\n        return direction + \" F M\"\n    if normal > 0:\n        return direction + \" F\"\n    return \"S\"\n\n\ndef choose_action(state):\n    grid = state[\"grid\"]\n    me = find_position(grid, \"M\")\n    target = find_position(grid, \"X\")\n    hp, facing, normal, mega = state[\"allies\"][\"M\"]\n    target_hp = state[\"enemies\"][\"X\"][0]\n\n    direction = shot_direction(grid, me, target, 3)\n    if direction is not None:\n        return attack_command(direction, target_hp, normal, mega)\n\n    # 목표는 포탑 칸이 아니라 '포탑을 맞힐 수 있는 빈 칸'입니다.\n    goals = set()\n    for row in range(len(grid)):\n        for col in range(len(grid[0])):\n            if grid[row][col] in (\"G\", \"M\"):\n                if shot_direction(grid, (row, col), target, 3) is not None:\n                    goals.add((row, col))\n\n    first_step = find_first_step(grid, me, goals)\n    return move_or_clear(grid, first_step, normal, mega)\n",
+      "summary": "비용 경로 탐색은 제공됩니다. 나무 통과 비용과 제거 명령을 수정합니다.",
+      "steps": [
+        "TODO 1: TREE_COST를 나무 제거 1턴 + 이동 1턴에 맞게 수정하세요.",
+        "TODO 2: 나무 앞에서 대기하는 대신 일반탄을 먼저, 없으면 메가탄을 발사하세요."
+      ],
+      "path": "answers/stage_5.py",
+      "note": "현재 웹 연습 맵용 완성 코드입니다. 공식 게임의 통신 코드는 포함하지 않습니다. 현재 맵의 탄약 배치를 기준으로 하며, 임의의 맵에 대한 탄약 상태 탐색이나 적의 다음 행동 예측은 포함하지 않습니다.",
+      "validation": [
+        {
+          "name": "기본 연습 맵",
+          "turns": 17,
+          "stars": 3
+        },
+        {
+          "name": "좌우 반전 맵",
+          "turns": 17,
+          "stars": 3
+        }
+      ]
     }
   },
   {
@@ -1744,9 +1923,10 @@
     "group": "실습 문제",
     "minutes": 60,
     "concept": "카이사르 암호 · 보급 · 적 이동 · 매 턴 재계획",
-    "story": "OT의 단계별 요구사항을 직접 만든 연습 맵에서 구현하고, 턴별 리플레이로 확인하세요.",
+    "story": "위치 탐색·경로 갱신·보급소 탐색은 제공됩니다. 해독 방향과 보급 판단을 수정합니다.",
     "requirements": [
       "OT Stage 6의 학습 목표를 연습하는 16×16 독립 연습 맵입니다. 공식 랜덤 맵이나 공식 게임 엔진과 동일하지 않습니다.",
+      "이동·탐색 뼈대가 제공됩니다. 편집기의 TODO 부분을 수정하세요. 제공 함수는 읽고 활용하며, 정답 보기 탭에서 완성 코드와 비교할 수 있습니다.",
       "choose_action(state)가 매 턴 최신 상태를 받아 명령 문자열 하나를 반환하게 만드세요. 100턴 안에 생존 상태로 적 포탑 X를 파괴하면 통과합니다.",
       "state 키: height, width, grid, allies, enemies, codes, turn. allies[\"M\"]은 [체력, 방향, 일반탄, 메가탄], enemies[\"X\"]는 [적 포탑 체력]입니다. 좌표는 grid에서 찾습니다.",
       "U/D/L/R A로 한 칸 이동, 방향 + F로 일반탄, 방향 + F M으로 메가탄을 발사합니다. 방향과 행동을 결합해도 1턴입니다. 대기는 S입니다.",
@@ -1757,7 +1937,7 @@
       "E1은 예제에 정한 네 칸을 턴마다 순찰합니다. 내 행동 이후 이동하고, 사선이 열린 상하좌우 3칸 이내에서 30 피해를 줍니다. 적 체력은 30입니다. 이 순찰·공격 순서는 웹 연습 전용입니다."
     ],
     "signature": "choose_action(state)",
-    "starter": "def choose_action(state):\n    grid = state[\"grid\"]\n    hp, direction, normal, mega = state[\"allies\"][\"M\"]\n\n    # 현재 맵에서 M과 X를 찾고 행동을 결정하세요.\n    # 예: \"U A\", \"R F\", \"L F M\", \"G 해독문\", \"S\"\n    return \"S\"\n",
+    "starter": "# WEB LAB SCAFFOLD v2 — Stage 6\n# [제공] 함수는 그대로 활용하고, TODO로 표시된 곳부터 수정하세요.\n# 웹 연습용 뼈대이며 공식 기본 코드 원문은 아닙니다.\n\"\"\"Stage 6: 보급소 암호를 해독하고 매 턴 새 맵으로 경로를 계산합니다.\n이 파일 하나로 현재 웹사이트의 Stage 1~6 연습 맵을 모두 풀 수도 있습니다.\n\"\"\"\nimport heapq\n\nTREE_COST = 2  # 제거 1턴 + 이동 1턴\n\n# 좌표는 (행, 열)입니다. 행은 아래로, 열은 오른쪽으로 증가합니다.\n# 방향마다 (행 변화, 열 변화, 명령 문자)를 묶어 둡니다.\nDIRECTIONS = [(-1, 0, \"U\"), (0, 1, \"R\"), (1, 0, \"D\"), (0, -1, \"L\")]\n\n\ndef find_position(grid, name):\n    \"\"\"맵에서 내 탱크 M 또는 적 포탑 X의 위치를 찾습니다.\"\"\"\n    for row in range(len(grid)):\n        for col in range(len(grid[0])):\n            if grid[row][col] == name:\n                return (row, col)\n    raise ValueError(name + \"의 위치를 찾을 수 없습니다.\")\n\n\ndef shot_direction(grid, position, target, max_range):\n    \"\"\"직선으로 명중할 수 있으면 방향을, 불가능하면 None을 반환합니다.\"\"\"\n    for dr, dc, direction in DIRECTIONS:\n        for distance in range(1, max_range + 1):\n            row = position[0] + dr * distance\n            col = position[1] + dc * distance\n\n            if not (0 <= row < len(grid) and 0 <= col < len(grid[0])):\n                break  # 맵 밖으로 나가면 이 방향의 탐색을 멈춥니다.\n            if (row, col) == target:\n                return direction\n            if grid[row][col] not in (\"G\", \"W\", \"S\"):\n                break  # 바위, 나무, 보급소, 적 탱크는 포탄을 막습니다.\n    return None\n\n\ndef find_first_step(grid, start, goals):\n    \"\"\"다익스트라: 이동 1턴, 나무 제거 후 이동 2턴으로 경로를 비교합니다.\"\"\"\n    # 큐 항목: (누적 턴 수, 현재 위치, 지나온 경로)\n    queue = [(0, start, [])]\n    best_cost = {start: 0}\n\n    while queue:\n        cost, position, path = heapq.heappop(queue)\n        if cost != best_cost[position]:\n            continue  # 더 좋은 경로를 이미 찾았다면 예전 후보는 건너뜁니다.\n        if position in goals:\n            return path[0] if path else None\n\n        for dr, dc, direction in DIRECTIONS:\n            row = position[0] + dr\n            col = position[1] + dc\n            next_position = (row, col)\n            if not (0 <= row < len(grid) and 0 <= col < len(grid[0])):\n                continue\n            if grid[row][col] not in (\"G\", \"M\", \"T\"):\n                continue  # 적 탱크 E1의 현재 위치도 피합니다.\n\n            step_cost = TREE_COST if grid[row][col] == \"T\" else 1\n            new_cost = cost + step_cost\n            if new_cost < best_cost.get(next_position, float(\"inf\")):\n                best_cost[next_position] = new_cost\n                new_path = path + [(row, col, direction)]\n                heapq.heappush(queue, (new_cost, next_position, new_path))\n    return None\n\n\ndef move_or_clear(grid, first_step, normal, mega):\n    \"\"\"다음 칸이 나무면 먼저 쏘고, 빈 땅이면 한 칸 이동합니다.\"\"\"\n    if first_step is None:\n        return \"S\"\n    row, col, direction = first_step\n    if grid[row][col] == \"T\":\n        if normal > 0:\n            return direction + \" F\"\n        if mega > 0:\n            return direction + \" F M\"\n        return \"S\"\n    return direction + \" A\"\n\n\ndef attack_command(direction, target_hp, normal, mega):\n    \"\"\"한 발로 끝낼 수 있으면 일반탄, 그렇지 않으면 메가탄을 우선합니다.\"\"\"\n    if normal > 0 and target_hp <= 30:\n        return direction + \" F\"\n    if mega > 0:\n        return direction + \" F M\"\n    if normal > 0:\n        return direction + \" F\"\n    return \"S\"\n\n\ndef decode_code(cipher):\n    \"\"\"A~Z 알파벳을 17칸 뒤로 옮겨 원문을 복구합니다.\"\"\"\n    answer = \"\"\n    for letter in cipher:\n        number = ord(letter) - ord(\"A\")  # A=0, B=1, ..., Z=25\n        original = (number + 17) % 26  # TODO 1: 암호 이동 방향 되돌리기   # 음수도 0~25 범위로 돌아옵니다.\n        answer += chr(original + ord(\"A\"))\n    return answer\n\n\ndef next_to_supply(grid, row, col):\n    \"\"\"현재 칸의 상하좌우 중 보급소 F가 있는지 확인합니다.\"\"\"\n    for dr, dc, direction in DIRECTIONS:\n        nr, nc = row + dr, col + dc\n        if 0 <= nr < len(grid) and 0 <= nc < len(grid[0]):\n            if grid[nr][nc] == \"F\":\n                return True\n    return False\n\n\ndef choose_action(state):\n    grid = state[\"grid\"]\n    me = find_position(grid, \"M\")\n    target = find_position(grid, \"X\")\n    hp, facing, normal, mega = state[\"allies\"][\"M\"]\n    target_hp = state[\"enemies\"][\"X\"][0]\n\n    # 지금 가진 탄약으로 포탑 체력을 깎을 수 있는지 계산합니다.\n    # 현재 연습 맵은 보급 후 일반탄을 나무에, 메가탄을 포탑에 쓸 수 있습니다.\n    total_damage = normal * 30 + mega * 70\n    need_supply = False  # TODO 2: 총 피해량과 포탑 체력 비교\n\n    # 보급소 옆이면 최신 암호를 해독해 메가탄 1발을 받습니다.\n    if need_supply and state[\"codes\"]:\n        plaintext = decode_code(state[\"codes\"][0])\n        return \"G \" + plaintext\n\n    # 탄약이 충분하고 사선이 열려 있으면 즉시 포탑을 공격합니다.\n    direction = shot_direction(grid, me, target, 3)\n    if not need_supply and direction is not None:\n        return attack_command(direction, target_hp, normal, mega)\n\n    # 탄약이 부족하면 보급소 옆으로, 충분하면 사격 위치로 갑니다.\n    goals = set()\n    for row in range(len(grid)):\n        for col in range(len(grid[0])):\n            if grid[row][col] not in (\"G\", \"M\"):\n                continue\n            if need_supply:\n                if next_to_supply(grid, row, col):\n                    goals.add((row, col))\n            elif shot_direction(grid, (row, col), target, 3) is not None:\n                goals.add((row, col))\n\n    # 매 턴 최신 맵을 다시 읽으므로 움직인 적의 현재 칸도 경로에서 제외됩니다.\n    first_step = find_first_step(grid, me, goals)\n    return move_or_clear(grid, first_step, normal, mega)\n",
     "tests": [
       {
         "name": "기본 연습 맵",
@@ -2736,6 +2916,43 @@
       "three": "43턴",
       "two": "44~46턴",
       "one": "47~99턴"
+    },
+    "legacyStarter": "def choose_action(state):\n    grid = state[\"grid\"]\n    hp, direction, normal, mega = state[\"allies\"][\"M\"]\n\n    # 현재 맵에서 M과 X를 찾고 행동을 결정하세요.\n    # 예: \"U A\", \"R F\", \"L F M\", \"G 해독문\", \"S\"\n    return \"S\"\n",
+    "scaffold": {
+      "version": 2,
+      "summary": "위치 탐색·경로 갱신·보급소 탐색은 제공됩니다. 해독 방향과 보급 판단을 수정합니다.",
+      "provided": [
+        "M·X 위치 찾기와 사격 판정",
+        "나무 통과 비용을 반영하는 다익스트라 경로 탐색",
+        "매 턴 최신 맵으로 재탐색하고 첫 행동 반환",
+        "보급소 인접 칸 탐색과 G 명령 구조, 알파벳 숫자 변환"
+      ],
+      "tasks": [
+        "TODO 1: 암호를 만들 때의 +17을 되돌릴 수 있도록 해독 수식을 수정하세요.",
+        "TODO 2: 보유 탄약의 총 피해량과 포탑 체력을 비교해 need_supply를 결정하세요."
+      ]
+    },
+    "answer": {
+      "code": "# WEB LAB SCAFFOLD v2 — Stage 6\n# [완성] 제공 함수에 단계별 수정 사항을 반영한 코드입니다.\n# 웹 연습용 뼈대이며 공식 기본 코드 원문은 아닙니다.\n\"\"\"Stage 6: 보급소 암호를 해독하고 매 턴 새 맵으로 경로를 계산합니다.\n이 파일 하나로 현재 웹사이트의 Stage 1~6 연습 맵을 모두 풀 수도 있습니다.\n\"\"\"\nimport heapq\n\nTREE_COST = 2  # 제거 1턴 + 이동 1턴\n\n# 좌표는 (행, 열)입니다. 행은 아래로, 열은 오른쪽으로 증가합니다.\n# 방향마다 (행 변화, 열 변화, 명령 문자)를 묶어 둡니다.\nDIRECTIONS = [(-1, 0, \"U\"), (0, 1, \"R\"), (1, 0, \"D\"), (0, -1, \"L\")]\n\n\ndef find_position(grid, name):\n    \"\"\"맵에서 내 탱크 M 또는 적 포탑 X의 위치를 찾습니다.\"\"\"\n    for row in range(len(grid)):\n        for col in range(len(grid[0])):\n            if grid[row][col] == name:\n                return (row, col)\n    raise ValueError(name + \"의 위치를 찾을 수 없습니다.\")\n\n\ndef shot_direction(grid, position, target, max_range):\n    \"\"\"직선으로 명중할 수 있으면 방향을, 불가능하면 None을 반환합니다.\"\"\"\n    for dr, dc, direction in DIRECTIONS:\n        for distance in range(1, max_range + 1):\n            row = position[0] + dr * distance\n            col = position[1] + dc * distance\n\n            if not (0 <= row < len(grid) and 0 <= col < len(grid[0])):\n                break  # 맵 밖으로 나가면 이 방향의 탐색을 멈춥니다.\n            if (row, col) == target:\n                return direction\n            if grid[row][col] not in (\"G\", \"W\", \"S\"):\n                break  # 바위, 나무, 보급소, 적 탱크는 포탄을 막습니다.\n    return None\n\n\ndef find_first_step(grid, start, goals):\n    \"\"\"다익스트라: 이동 1턴, 나무 제거 후 이동 2턴으로 경로를 비교합니다.\"\"\"\n    # 큐 항목: (누적 턴 수, 현재 위치, 지나온 경로)\n    queue = [(0, start, [])]\n    best_cost = {start: 0}\n\n    while queue:\n        cost, position, path = heapq.heappop(queue)\n        if cost != best_cost[position]:\n            continue  # 더 좋은 경로를 이미 찾았다면 예전 후보는 건너뜁니다.\n        if position in goals:\n            return path[0] if path else None\n\n        for dr, dc, direction in DIRECTIONS:\n            row = position[0] + dr\n            col = position[1] + dc\n            next_position = (row, col)\n            if not (0 <= row < len(grid) and 0 <= col < len(grid[0])):\n                continue\n            if grid[row][col] not in (\"G\", \"M\", \"T\"):\n                continue  # 적 탱크 E1의 현재 위치도 피합니다.\n\n            step_cost = TREE_COST if grid[row][col] == \"T\" else 1\n            new_cost = cost + step_cost\n            if new_cost < best_cost.get(next_position, float(\"inf\")):\n                best_cost[next_position] = new_cost\n                new_path = path + [(row, col, direction)]\n                heapq.heappush(queue, (new_cost, next_position, new_path))\n    return None\n\n\ndef move_or_clear(grid, first_step, normal, mega):\n    \"\"\"다음 칸이 나무면 먼저 쏘고, 빈 땅이면 한 칸 이동합니다.\"\"\"\n    if first_step is None:\n        return \"S\"\n    row, col, direction = first_step\n    if grid[row][col] == \"T\":\n        if normal > 0:\n            return direction + \" F\"\n        if mega > 0:\n            return direction + \" F M\"\n        return \"S\"\n    return direction + \" A\"\n\n\ndef attack_command(direction, target_hp, normal, mega):\n    \"\"\"한 발로 끝낼 수 있으면 일반탄, 그렇지 않으면 메가탄을 우선합니다.\"\"\"\n    if normal > 0 and target_hp <= 30:\n        return direction + \" F\"\n    if mega > 0:\n        return direction + \" F M\"\n    if normal > 0:\n        return direction + \" F\"\n    return \"S\"\n\n\ndef decode_code(cipher):\n    \"\"\"A~Z 알파벳을 17칸 뒤로 옮겨 원문을 복구합니다.\"\"\"\n    answer = \"\"\n    for letter in cipher:\n        number = ord(letter) - ord(\"A\")  # A=0, B=1, ..., Z=25\n        original = (number - 17) % 26   # 음수도 0~25 범위로 돌아옵니다.\n        answer += chr(original + ord(\"A\"))\n    return answer\n\n\ndef next_to_supply(grid, row, col):\n    \"\"\"현재 칸의 상하좌우 중 보급소 F가 있는지 확인합니다.\"\"\"\n    for dr, dc, direction in DIRECTIONS:\n        nr, nc = row + dr, col + dc\n        if 0 <= nr < len(grid) and 0 <= nc < len(grid[0]):\n            if grid[nr][nc] == \"F\":\n                return True\n    return False\n\n\ndef choose_action(state):\n    grid = state[\"grid\"]\n    me = find_position(grid, \"M\")\n    target = find_position(grid, \"X\")\n    hp, facing, normal, mega = state[\"allies\"][\"M\"]\n    target_hp = state[\"enemies\"][\"X\"][0]\n\n    # 지금 가진 탄약으로 포탑 체력을 깎을 수 있는지 계산합니다.\n    # 현재 연습 맵은 보급 후 일반탄을 나무에, 메가탄을 포탑에 쓸 수 있습니다.\n    total_damage = normal * 30 + mega * 70\n    need_supply = total_damage < target_hp\n\n    # 보급소 옆이면 최신 암호를 해독해 메가탄 1발을 받습니다.\n    if need_supply and state[\"codes\"]:\n        plaintext = decode_code(state[\"codes\"][0])\n        return \"G \" + plaintext\n\n    # 탄약이 충분하고 사선이 열려 있으면 즉시 포탑을 공격합니다.\n    direction = shot_direction(grid, me, target, 3)\n    if not need_supply and direction is not None:\n        return attack_command(direction, target_hp, normal, mega)\n\n    # 탄약이 부족하면 보급소 옆으로, 충분하면 사격 위치로 갑니다.\n    goals = set()\n    for row in range(len(grid)):\n        for col in range(len(grid[0])):\n            if grid[row][col] not in (\"G\", \"M\"):\n                continue\n            if need_supply:\n                if next_to_supply(grid, row, col):\n                    goals.add((row, col))\n            elif shot_direction(grid, (row, col), target, 3) is not None:\n                goals.add((row, col))\n\n    # 매 턴 최신 맵을 다시 읽으므로 움직인 적의 현재 칸도 경로에서 제외됩니다.\n    first_step = find_first_step(grid, me, goals)\n    return move_or_clear(grid, first_step, normal, mega)\n",
+      "summary": "위치 탐색·경로 갱신·보급소 탐색은 제공됩니다. 해독 방향과 보급 판단을 수정합니다.",
+      "steps": [
+        "TODO 1: 암호를 만들 때의 +17을 되돌릴 수 있도록 해독 수식을 수정하세요.",
+        "TODO 2: 보유 탄약의 총 피해량과 포탑 체력을 비교해 need_supply를 결정하세요."
+      ],
+      "path": "answers/stage_6.py",
+      "note": "현재 웹 연습 맵용 완성 코드입니다. 공식 게임의 통신 코드는 포함하지 않습니다. 현재 맵의 탄약 배치를 기준으로 하며, 임의의 맵에 대한 탄약 상태 탐색이나 적의 다음 행동 예측은 포함하지 않습니다.",
+      "validation": [
+        {
+          "name": "기본 연습 맵",
+          "turns": 30,
+          "stars": 3
+        },
+        {
+          "name": "좌우 반전 맵",
+          "turns": 30,
+          "stars": 3
+        }
+      ]
     }
   }
 ]

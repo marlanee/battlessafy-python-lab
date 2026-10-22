@@ -78,6 +78,7 @@ function refreshProgress() {
   $('progress-text').textContent = `${n} / ${track.length}`;
   $('progress-caption').textContent = n === track.length ? '이 학습 영역을 완주했어요. 다음 전략을 준비해요!' : n ? `${track.length - n}개의 미션이 다음 전략을 기다립니다.` : '첫 번째 미션을 시작해 보세요.';
   $('mission-state').textContent = completed(current.id) ? '✓ 채점 통과' : record().attempts ? '학습 중' : '도전 전';
+  $('next').textContent = completed(current.id) ? '통과했어요! 다음 과제 →' : '다음 과제 살펴보기 →';
   renderNav();
 }
 
@@ -157,12 +158,52 @@ function renderHints() {
 }
 
 function activateTab(name) {
-  for (const id of ['problem', 'notes']) {
+  for (const id of ['problem', 'answer', 'notes']) {
     const active = name === id;
     $(`${id}-tab`).classList.toggle('active', active);
     $(`${id}-tab`).setAttribute('aria-selected', String(active));
+    $(`${id}-tab`).tabIndex = active ? 0 : -1;
     $(`${id}-panel`).hidden = !active;
   }
+}
+
+function renderScaffold() {
+  const scaffold = current.scaffold;
+  $('scaffold-card').hidden = !scaffold;
+  if (!scaffold) return;
+  $('scaffold-summary').textContent = scaffold.summary;
+  $('scaffold-provided').replaceChildren(...scaffold.provided.map((text) => el('li', '', text)));
+  $('scaffold-tasks').replaceChildren(...scaffold.tasks.map((text) => el('li', '', text)));
+  $('scaffold-saved-note').textContent = record().code.includes('# WEB LAB SCAFFOLD v2')
+    ? '[제공] 함수는 그대로 활용하고 TODO가 있는 줄부터 수정하세요.'
+    : '저장한 기존 코드를 유지했습니다. 새 뼈대로 연습하려면 먼저 .py로 저장한 뒤 ‘새 학습 뼈대 불러오기’를 누르세요.';
+}
+
+function renderAnswer() {
+  const answer = current.answer;
+  $('answer-tab').hidden = !answer;
+  $('answer-code').value = answer?.code || '';
+  $('answer-summary').textContent = answer?.summary || '';
+  $('answer-steps').replaceChildren(...(answer?.steps || []).map((text) => el('li', '', text)));
+  $('answer-note').textContent = answer?.note || '';
+  $('answer-validation').textContent = answer?.validation.map((test) => `${test.name}: ${test.turns}턴 ${'★'.repeat(test.stars)}`).join(' · ') || '';
+}
+
+function jumpToTodo() {
+  if (busy) return;
+  const editor = $('code');
+  const matches = [...editor.value.matchAll(/TODO\s*\d+/g)];
+  if (!matches.length) { toast('현재 코드에 TODO가 없습니다. 새 학습 뼈대를 불러오거나 정답과 비교해 보세요.'); return; }
+  const match = matches.find((item) => item.index >= editor.selectionEnd) || matches[0];
+  const start = editor.value.lastIndexOf('\n', match.index) + 1;
+  const lineEnd = editor.value.indexOf('\n', match.index);
+  editor.focus();
+  editor.setSelectionRange(start, lineEnd === -1 ? editor.value.length : lineEnd);
+  const line = editor.value.slice(0, start).split('\n').length - 1;
+  const lineHeight = parseFloat(getComputedStyle(editor).lineHeight);
+  editor.scrollTop = Math.max(0, (line - 3) * lineHeight);
+  $('line-numbers').scrollTop = editor.scrollTop;
+  editor.scrollIntoView({ block: 'center' });
 }
 
 function emptyResults() {
@@ -222,6 +263,10 @@ function navigate() {
   $('code').scrollTop = 0;
   $('code').scrollLeft = 0;
   $('filename').textContent = `mission_${current.id.toLowerCase()}.py`;
+  renderScaffold();
+  renderAnswer();
+  $('reset').textContent = stage ? '제공 뼈대로' : '시작 코드';
+  $('reset-dialog-title').textContent = stage ? '제공된 학습 뼈대를 불러올까요?' : '시작 코드로 되돌릴까요?';
   $('examples').replaceChildren();
   current.tests.filter((test) => test.visible).forEach((test, i) => {
     const example = el('div', 'example');
@@ -298,6 +343,7 @@ function ensureRuntime() {
 function setBusy(value) {
   busy = value;
   $('run').disabled = $('grade').disabled = $('reset').disabled = $('restore').disabled = value;
+  $('load-scaffold').disabled = $('jump-todo').disabled = value;
   $('stage-track').disabled = $('extra-track').disabled = value;
   $('code').readOnly = value;
   $('stop').hidden = !value;
@@ -481,13 +527,31 @@ function bindEvents() {
   $('grade').addEventListener('click', () => execute('grade'));
   $('stop').addEventListener('click', stopExecution);
   $('hint').addEventListener('click', () => { record().hints = Math.min(current.hints.length, (record().hints || 0) + 1); renderHints(); persist(); });
-  $('problem-tab').addEventListener('click', () => activateTab('problem'));
-  $('notes-tab').addEventListener('click', () => activateTab('notes'));
-  for (const id of ['problem', 'notes']) $(`${id}-tab`).addEventListener('keydown', (event) => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); const next = id === 'problem' ? 'notes' : 'problem'; activateTab(next); $(`${next}-tab`).focus(); } });
+  for (const id of ['problem', 'answer', 'notes']) {
+    $(`${id}-tab`).addEventListener('click', () => activateTab(id));
+    $(`${id}-tab`).addEventListener('keydown', (event) => {
+      const tabs = ['problem', 'answer', 'notes'].filter((name) => !$(`${name}-tab`).hidden);
+      let index = tabs.indexOf(id);
+      if (event.key === 'ArrowRight') index = (index + 1) % tabs.length;
+      else if (event.key === 'ArrowLeft') index = (index + tabs.length - 1) % tabs.length;
+      else if (event.key === 'Home') index = 0;
+      else if (event.key === 'End') index = tabs.length - 1;
+      else return;
+      event.preventDefault(); activateTab(tabs[index]); $(`${tabs[index]}-tab`).focus();
+    });
+  }
+  $('copy-answer').addEventListener('click', async () => {
+    if (!current.answer) return;
+    try { await navigator.clipboard.writeText(current.answer.code); toast('완성 코드를 복사했어요. 전체 코드를 붙여 넣어 사용하세요.'); }
+    catch { download(`stage_${current.number}_answer.py`, current.answer.code, 'text/x-python;charset=utf-8'); toast('클립보드 대신 정답 .py 파일로 저장했어요.'); }
+  });
+  $('download-answer').addEventListener('click', () => { if (current.answer) download(`stage_${current.number}_answer.py`, current.answer.code, 'text/x-python;charset=utf-8'); });
+  $('load-scaffold').addEventListener('click', () => $('reset-dialog').showModal());
+  $('jump-todo').addEventListener('click', jumpToTodo);
   $('download').addEventListener('click', () => download(`mission_${current.id.toLowerCase()}.py`, record().code, 'text/x-python;charset=utf-8'));
   $('review').addEventListener('click', copyReview);
   $('reset').addEventListener('click', () => $('reset-dialog').showModal());
-  $('reset-dialog').addEventListener('close', () => { if ($('reset-dialog').returnValue === 'reset') { record().code = current.starter; record().passed = false; record().passedCode = ''; $('code').value = current.starter; saveCode(); emptyResults(); toast('시작 코드로 되돌렸어요.'); } });
+  $('reset-dialog').addEventListener('close', () => { if ($('reset-dialog').returnValue === 'reset') { record().code = current.starter; record().passed = false; record().passedCode = ''; $('code').value = current.starter; $('code').scrollTop = 0; saveCode(); renderScaffold(); emptyResults(); toast(current.scaffold ? '제공 뼈대를 불러왔어요. TODO를 수정해 보세요.' : '시작 코드로 되돌렸어요.'); } });
   $('about').addEventListener('click', () => $('about-dialog').showModal());
   $('guide').addEventListener('click', () => $('guide-dialog').showModal());
   $('stage-track').addEventListener('click', () => { location.hash = 'stage1'; });
@@ -514,7 +578,7 @@ function bindEvents() {
 
 async function main() {
   try {
-    const responses = await Promise.all(['stages.json', 'lessons.json'].map((file) => fetch(new URL(`./${file}`, import.meta.url))));
+    const responses = await Promise.all(['stages.json', 'lessons.json'].map((file) => fetch(new URL(`./${file}?v=4`, import.meta.url))));
     if (responses.some((r) => !r.ok)) throw new Error('과제 파일을 읽지 못했습니다.');
     const [stages, extra] = await Promise.all(responses.map((r) => r.json()));
     lessons = [...stages, ...extra];
